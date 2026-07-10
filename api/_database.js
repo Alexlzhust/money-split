@@ -70,12 +70,18 @@ async function initializeSchema() {
         title TEXT NOT NULL,
         total_amount_cents INTEGER NOT NULL CHECK (total_amount_cents > 0),
         currency TEXT NOT NULL DEFAULT 'TWD',
+        expense_date DATE,
+        category TEXT NOT NULL DEFAULT '其他',
         payer_name TEXT NOT NULL REFERENCES members(name),
         split_type TEXT NOT NULL CHECK (split_type IN ('EQUAL', 'CUSTOM')),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
     await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'TWD'`;
+    await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS expense_date DATE`;
+    await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT '其他'`;
+    await sql`UPDATE transactions SET expense_date = created_at::date WHERE expense_date IS NULL`;
+    await sql`ALTER TABLE transactions ALTER COLUMN expense_date SET DEFAULT CURRENT_DATE`;
     await sql`
       CREATE TABLE IF NOT EXISTS splits (
         transaction_id TEXT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
@@ -99,9 +105,9 @@ export async function readState() {
   const [members, transactions, splits] = await Promise.all([
     sql`SELECT name FROM members ORDER BY created_at ASC, name ASC`,
     sql`
-      SELECT id, title, total_amount_cents, currency, payer_name, split_type
+      SELECT id, title, total_amount_cents, currency, expense_date, category, payer_name, split_type
       FROM transactions
-      ORDER BY created_at DESC, id DESC
+      ORDER BY expense_date DESC, created_at DESC, id DESC
     `,
     sql`
       SELECT transaction_id, user_name, amount_cents
@@ -134,12 +140,23 @@ export async function addTransaction(transaction) {
 
   await sql.transaction([
     sql`
-      INSERT INTO transactions (id, title, total_amount_cents, currency, payer_name, split_type)
+      INSERT INTO transactions (
+        id,
+        title,
+        total_amount_cents,
+        currency,
+        expense_date,
+        category,
+        payer_name,
+        split_type
+      )
       VALUES (
         ${normalized.id},
         ${normalized.title},
         ${normalized.totalAmountCents},
         ${normalized.currency},
+        ${normalized.expenseDate || null},
+        ${normalized.category},
         ${normalized.payer},
         ${normalized.splitType}
       )
@@ -167,6 +184,8 @@ export async function updateTransaction(transaction) {
         title = ${normalized.title},
         total_amount_cents = ${normalized.totalAmountCents},
         currency = ${normalized.currency},
+        expense_date = ${normalized.expenseDate || null},
+        category = ${normalized.category},
         payer_name = ${normalized.payer},
         split_type = ${normalized.splitType}
       WHERE id = ${normalized.id}

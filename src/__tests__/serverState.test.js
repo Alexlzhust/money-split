@@ -12,6 +12,8 @@ describe('server state payload helpers', () => {
           title: '咖啡',
           total_amount_cents: 3600,
           currency: 'HKD',
+          expense_date: '2026-07-10',
+          category: '餐饮',
           payer_name: '阿宁',
           split_type: 'CUSTOM'
         }
@@ -30,6 +32,8 @@ describe('server state payload helpers', () => {
           title: '咖啡',
           totalAmount: 36,
           currency: 'HKD',
+          expenseDate: '2026-07-10',
+          category: '餐饮',
           payer: '阿宁',
           splitType: 'CUSTOM',
           splits: {
@@ -60,6 +64,8 @@ describe('server state payload helpers', () => {
     );
 
     assert.equal(state.transactions[0].currency, 'TWD');
+    assert.equal(state.transactions[0].expenseDate, '');
+    assert.equal(state.transactions[0].category, '其他');
   });
 
   it('normalizes incoming transaction amounts to cents', () => {
@@ -69,6 +75,8 @@ describe('server state payload helpers', () => {
         title: '晚餐',
         totalAmount: 90,
         currency: 'HKD',
+        expenseDate: '2026-07-10',
+        category: '交通',
         payer: '阿宁',
         splitType: 'EQUAL',
         splits: { '阿宁': 45, '小周': 45 }
@@ -78,6 +86,8 @@ describe('server state payload helpers', () => {
         title: '晚餐',
         totalAmountCents: 9000,
         currency: 'HKD',
+        expenseDate: '2026-07-10',
+        category: '交通',
         payer: '阿宁',
         splitType: 'EQUAL',
         splitRows: [

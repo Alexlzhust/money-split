@@ -2,6 +2,7 @@ import { Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { html } from './lib/html.js';
 import { useLocalStorage } from './hooks/useLocalStorage.js';
+import { ExpenseSummary } from './components/ExpenseSummary.js';
 import { MemberManagement } from './components/MemberManagement.js';
 import { SettlementDashboard } from './components/SettlementDashboard.js';
 import { TransactionForm } from './components/TransactionForm.js';
@@ -187,6 +188,10 @@ export function App() {
             />
           </div>
           <div className="space-y-4">
+            <${ExpenseSummary}
+              transactions=${transactions}
+              settlementCurrency=${settlementCurrency}
+            />
             <${SettlementDashboard}
               users=${users}
               transactions=${transactions}

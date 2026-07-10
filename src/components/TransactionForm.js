@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calculator, Coins, ReceiptText, X } from 'lucide-react';
+import { Calculator, CalendarDays, Coins, ReceiptText, Tags, X } from 'lucide-react';
 import { html } from '../lib/html.js';
 import { MoneyAmount } from './MoneyAmount.js';
+import {
+  DEFAULT_CATEGORY,
+  EXPENSE_CATEGORIES,
+  getTodayDate,
+  normalizeCategory
+} from '../config/expenseMeta.js';
 import { CURRENCIES, DEFAULT_CURRENCY, formatMoney, getCurrencyRateLabel } from '../utils/currency.js';
 import {
   SPLIT_TYPES,
@@ -15,6 +21,8 @@ export function TransactionForm({ users, editingTransaction, onCancelEdit, onSav
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
+  const [expenseDate, setExpenseDate] = useState(getTodayDate());
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [payer, setPayer] = useState(users[0] || '');
   const [splitType, setSplitType] = useState(SPLIT_TYPES.EQUAL);
   const [participants, setParticipants] = useState(users);
@@ -29,6 +37,8 @@ export function TransactionForm({ users, editingTransaction, onCancelEdit, onSav
       setTitle(editingTransaction.title);
       setTotalAmount(String(editingTransaction.totalAmount));
       setCurrency(editingTransaction.currency || DEFAULT_CURRENCY);
+      setExpenseDate(editingTransaction.expenseDate || getTodayDate());
+      setCategory(normalizeCategory(editingTransaction.category || DEFAULT_CATEGORY));
       setPayer(users.includes(editingTransaction.payer) ? editingTransaction.payer : users[0] || '');
       setSplitType(editingTransaction.splitType);
       setParticipants(splitUsers.length ? splitUsers : users);
@@ -64,7 +74,7 @@ export function TransactionForm({ users, editingTransaction, onCancelEdit, onSav
   const customTotal = sumSplits(customSplits);
   const customDifference = fromCents(amountCents - toCents(customTotal));
   const hasUsers = users.length > 0;
-  const hasBaseFields = title.trim() && amountCents > 0 && users.includes(payer);
+  const hasBaseFields = title.trim() && amountCents > 0 && expenseDate && users.includes(payer);
   const customInvalid =
     splitType === SPLIT_TYPES.CUSTOM && amountCents > 0 && toCents(customTotal) !== amountCents;
   const equalInvalid = splitType === SPLIT_TYPES.EQUAL && participants.length === 0;
@@ -84,6 +94,8 @@ export function TransactionForm({ users, editingTransaction, onCancelEdit, onSav
     setTitle('');
     setTotalAmount('');
     setCurrency(DEFAULT_CURRENCY);
+    setExpenseDate(getTodayDate());
+    setCategory(DEFAULT_CATEGORY);
     setSplitType(SPLIT_TYPES.EQUAL);
     setParticipants(users);
     setCustomSplits(users.reduce((result, user) => ({ ...result, [user]: '' }), {}));
@@ -100,6 +112,8 @@ export function TransactionForm({ users, editingTransaction, onCancelEdit, onSav
       title: title.trim(),
       totalAmount: amountValue,
       currency,
+      expenseDate,
+      category,
       payer,
       splitType,
       splits:
@@ -191,6 +205,39 @@ export function TransactionForm({ users, editingTransaction, onCancelEdit, onSav
           ${rateLabel &&
           html`<span className="mt-1 block text-xs font-normal text-slate-500">${rateLabel}</span>`}
         </label>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm font-medium text-slate-700">
+            <span className="flex items-center gap-2">
+              <${CalendarDays} className="h-4 w-4 text-teal-600" aria-hidden="true" />
+              日期
+            </span>
+            <input
+              data-testid="transaction-date-input"
+              type="date"
+              value=${expenseDate}
+              onInput=${(event) => setExpenseDate(event.target.value)}
+              onChange=${(event) => setExpenseDate(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+            />
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            <span className="flex items-center gap-2">
+              <${Tags} className="h-4 w-4 text-teal-600" aria-hidden="true" />
+              分类
+            </span>
+            <select
+              data-testid="transaction-category-select"
+              value=${category}
+              onChange=${(event) => setCategory(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+            >
+              ${EXPENSE_CATEGORIES.map(
+                (item) => html`<option key=${item} value=${item}>${item}</option>`
+              )}
+            </select>
+          </label>
+        </div>
 
         <label className="block text-sm font-medium text-slate-700">
           付款人

@@ -1,5 +1,11 @@
 import { fromCents, toCents } from '../utils/settlements.js';
 import { DEFAULT_CURRENCY, getCurrencyMeta } from '../utils/currency.js';
+import {
+  DEFAULT_CATEGORY,
+  formatExpenseDate,
+  getTodayDate,
+  normalizeCategory
+} from '../config/expenseMeta.js';
 
 export function buildStateFromRows(memberRows, transactionRows, splitRows) {
   const splitsByTransaction = splitRows.reduce((result, row) => {
@@ -17,6 +23,8 @@ export function buildStateFromRows(memberRows, transactionRows, splitRows) {
       title: row.title,
       totalAmount: fromCents(row.total_amount_cents),
       currency: getCurrencyMeta(row.currency || DEFAULT_CURRENCY).code,
+      expenseDate: formatExpenseDate(row.expense_date),
+      category: normalizeCategory(row.category || DEFAULT_CATEGORY),
       payer: row.payer_name,
       splitType: row.split_type,
       splits: splitsByTransaction[row.id] || {}
@@ -33,6 +41,8 @@ export function normalizeTransactionInput(transaction) {
   const title = String(transaction.title || '').trim();
   const payer = String(transaction.payer || '').trim();
   const currency = getCurrencyMeta(transaction.currency || DEFAULT_CURRENCY).code;
+  const expenseDate = formatExpenseDate(transaction.expenseDate) || getTodayDate();
+  const category = normalizeCategory(transaction.category || DEFAULT_CATEGORY);
   const splitType = String(transaction.splitType || '').trim();
   const totalAmountCents = toCents(transaction.totalAmount);
   const splits = transaction.splits || {};
@@ -56,6 +66,8 @@ export function normalizeTransactionInput(transaction) {
     title,
     totalAmountCents,
     currency,
+    expenseDate,
+    category,
     payer,
     splitType,
     splitRows

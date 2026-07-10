@@ -1,6 +1,7 @@
 import { Edit3, ListChecks, RotateCcw, Trash2 } from 'lucide-react';
 import { html } from '../lib/html.js';
 import { MoneyAmount } from './MoneyAmount.js';
+import { DEFAULT_CATEGORY, normalizeCategory } from '../config/expenseMeta.js';
 import { DEFAULT_CURRENCY, getCurrencyMeta } from '../utils/currency.js';
 
 export function TransactionList({
@@ -41,6 +42,8 @@ export function TransactionList({
                   const transactionCurrency = getCurrencyMeta(
                     transaction.currency || DEFAULT_CURRENCY
                   ).code;
+                  const category = normalizeCategory(transaction.category || DEFAULT_CATEGORY);
+                  const expenseDate = transaction.expenseDate || '';
 
                   return html`
                   <article
@@ -55,7 +58,8 @@ export function TransactionList({
                       <div>
                         <h3 className="font-semibold">${transaction.title}</h3>
                         <p className="mt-1 text-sm text-slate-500">
-                          ${transaction.payer} 垫付 · ${transaction.splitType === 'EQUAL'
+                          ${expenseDate && html`${expenseDate} · `}
+                          ${category} · ${transaction.payer} 垫付 · ${transaction.splitType === 'EQUAL'
                             ? '均分'
                             : '自定义'} · ${transactionCurrency}
                         </p>
