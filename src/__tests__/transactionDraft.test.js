@@ -4,13 +4,37 @@ import {
   buildRepaymentTransaction,
   deriveCustomTotal,
   getDefaultPayer,
-  getDraftCurrency
+  getDraftCurrency,
+  getEffectiveTransactionAmount
 } from '../utils/transactionDraft.js';
 import { calculateNetBalances } from '../utils/settlements.js';
 
 describe('transaction draft helpers', () => {
   it('derives a cent-rounded total from custom splits', () => {
     assert.equal(deriveCustomTotal({ 阿宁: '10.10', 小林: 20.205, 小周: '' }), 30.31);
+  });
+
+  it('uses custom shares or the entered equal total as the effective amount', () => {
+    assert.equal(
+      getEffectiveTransactionAmount({
+        splitType: 'CUSTOM',
+        totalAmount: '999',
+        customSplits: { 阿宁: '10.10', 小林: '20.21' }
+      }),
+      30.31
+    );
+    assert.equal(
+      getEffectiveTransactionAmount({
+        splitType: 'EQUAL',
+        totalAmount: '90.005',
+        customSplits: { 阿宁: '999' }
+      }),
+      90.01
+    );
+    assert.equal(
+      getEffectiveTransactionAmount({ splitType: 'EQUAL', totalAmount: 'invalid' }),
+      0
+    );
   });
 
   it('uses a remembered payer only while that payer is a current member', () => {

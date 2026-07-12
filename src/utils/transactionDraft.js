@@ -5,6 +5,14 @@ export function deriveCustomTotal(customSplits) {
   return sumSplits(customSplits || {});
 }
 
+export function getEffectiveTransactionAmount({ splitType, totalAmount, customSplits } = {}) {
+  if (splitType === SPLIT_TYPES.CUSTOM) {
+    return deriveCustomTotal(customSplits);
+  }
+
+  return fromCents(toCents(totalAmount));
+}
+
 export function getDefaultPayer(users, rememberedPayer) {
   const currentUsers = Array.isArray(users) ? users : [];
   if (currentUsers.includes(rememberedPayer)) {
