@@ -1,4 +1,4 @@
-import { fromCents, toCents } from '../utils/settlements.js';
+import { fromCents, getValidMoneyCents } from '../utils/settlements.js';
 import { DEFAULT_CURRENCY, getCurrencyMeta } from '../utils/currency.js';
 import {
   DEFAULT_CATEGORY,
@@ -44,20 +44,31 @@ export function normalizeTransactionInput(transaction) {
   const expenseDate = formatExpenseDate(transaction.expenseDate) || getTodayDate();
   const category = normalizeCategory(transaction.category || DEFAULT_CATEGORY);
   const splitType = String(transaction.splitType || '').trim();
-  const totalAmountCents = toCents(transaction.totalAmount);
+  const totalAmountCents = getValidMoneyCents(transaction.totalAmount, { minimumCents: 1 });
   const splits = transaction.splits || {};
 
-  if (!id || !title || !payer || !['EQUAL', 'CUSTOM'].includes(splitType) || totalAmountCents <= 0) {
+  if (!id || !title || !payer || !['EQUAL', 'CUSTOM'].includes(splitType)) {
     throw new Error('Transaction fields are incomplete.');
+  }
+  if (totalAmountCents === null) {
+    throw new Error('Transaction amount is outside the supported range.');
   }
 
   const splitRows = Object.entries(splits).map(([userName, amount]) => ({
     userName: String(userName).trim(),
-    amountCents: toCents(amount)
+    amountCents: getValidMoneyCents(amount)
   }));
 
+  if (splitRows.some((row) => row.amountCents === null)) {
+    throw new Error('Transaction split amount is outside the supported range.');
+  }
   const splitTotalCents = splitRows.reduce((total, row) => total + row.amountCents, 0);
-  if (!splitRows.length || splitRows.some((row) => !row.userName) || splitTotalCents !== totalAmountCents) {
+  if (
+    !splitRows.length ||
+    splitRows.some((row) => !row.userName) ||
+    !Number.isSafeInteger(splitTotalCents) ||
+    splitTotalCents !== totalAmountCents
+  ) {
     throw new Error('Transaction splits must add up to total amount.');
   }
 

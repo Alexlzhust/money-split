@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildStateFromRows, normalizeTransactionInput } from '../server/statePayload.js';
+import { MAX_MONEY_CENTS } from '../utils/settlements.js';
 
 describe('server state payload helpers', () => {
   it('builds app state from database rows', () => {
@@ -95,6 +96,62 @@ describe('server state payload helpers', () => {
           { userName: '小周', amountCents: 4500 }
         ]
       }
+    );
+  });
+
+  it('accepts the PostgreSQL integer cents ceiling', () => {
+    const normalized = normalizeTransactionInput({
+      id: 'tx-max',
+      title: 'Boundary',
+      totalAmount: 21474836.47,
+      payer: 'A',
+      splitType: 'CUSTOM',
+      splits: { A: 21474836.47 }
+    });
+
+    assert.equal(normalized.totalAmountCents, MAX_MONEY_CENTS);
+    assert.equal(normalized.splitRows[0].amountCents, MAX_MONEY_CENTS);
+  });
+
+  it('rejects total and split cents above the PostgreSQL integer ceiling', () => {
+    assert.throws(
+      () =>
+        normalizeTransactionInput({
+          id: 'tx-total-overflow',
+          title: 'Overflow',
+          totalAmount: 21474836.48,
+          payer: 'A',
+          splitType: 'CUSTOM',
+          splits: { A: 21474836.48 }
+        }),
+      /amount/i
+    );
+    assert.throws(
+      () =>
+        normalizeTransactionInput({
+          id: 'tx-split-overflow',
+          title: 'Overflow split',
+          totalAmount: 1,
+          payer: 'A',
+          splitType: 'CUSTOM',
+          splits: { A: 21474836.48, B: -21474835.48 }
+        }),
+      /split/i
+    );
+  });
+
+  it('rejects negative split cents even when the exact total is preserved', () => {
+    assert.throws(
+      () =>
+        normalizeTransactionInput({
+          id: 'tx-negative-split',
+          title: 'Offset',
+          totalAmount: 1,
+          payer: 'A',
+          splitType: 'CUSTOM',
+          splits: { A: -1, B: 2 }
+        }),
+      /split/i
     );
   });
 });

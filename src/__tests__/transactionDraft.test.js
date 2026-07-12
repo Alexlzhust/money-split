@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import {
   buildTransactionPayload,
@@ -8,11 +9,40 @@ import {
   getDefaultPayer,
   getDraftCurrency,
   getEffectiveTransactionAmount,
+  getCustomSplitInputs,
   getUnavailableTransactionMembers,
   isTransactionDraftValid,
-  reconcileEqualParticipants
+  reconcileEqualParticipants,
+  selectRepaymentRecipient
 } from '../utils/transactionDraft.js';
 import { calculateNetBalances } from '../utils/settlements.js';
+
+const transactionFormSource = readFileSync(
+  new URL('../components/TransactionForm.js', import.meta.url),
+  'utf8'
+);
+
+describe('transaction form contracts', () => {
+  it('marks the screen busy and locks the editable form controls while submitting', () => {
+    assert.match(transactionFormSource, /aria-busy=\$\{isSubmitting\}/);
+    assert.match(
+      transactionFormSource,
+      /<fieldset[^>]*disabled=\$\{isSubmitting\}[^>]*>/s
+    );
+  });
+
+  it('caps every monetary input at the shared maximum amount', () => {
+    assert.equal(
+      [...transactionFormSource.matchAll(/max=\$\{MAX_MONEY_AMOUNT\}/g)].length,
+      2
+    );
+  });
+
+  it('shows a visible focus ring on split mode labels', () => {
+    assert.match(transactionFormSource, /focus-within:ring-2/);
+    assert.match(transactionFormSource, /focus-within:ring-teal-600/);
+  });
+});
 
 describe('transaction draft helpers', () => {
   it('derives a cent-rounded total from custom splits', () => {
@@ -47,6 +77,21 @@ describe('transaction draft helpers', () => {
     assert.equal(getDefaultPayer(['阿宁', '小林'], '小周'), '阿宁');
     assert.equal(getDefaultPayer([], '小林'), '');
     assert.equal(getDefaultPayer(undefined, '阿宁'), '');
+  });
+
+  it('preserves a valid repayment recipient and falls back when the payer changes', () => {
+    const users = ['A', 'B', 'C'];
+
+    assert.equal(selectRepaymentRecipient(users, 'A', 'C'), 'C');
+    assert.equal(selectRepaymentRecipient(users, 'C', 'C'), 'A');
+    assert.equal(selectRepaymentRecipient(['B', 'A', 'C'], 'C', 'C'), 'B');
+  });
+
+  it('builds custom split inputs in current-member order', () => {
+    assert.deepEqual(
+      getCustomSplitInputs(['A', 'B'], { A: 12, C: 30 }),
+      { A: 12, B: '' }
+    );
   });
 
   it('preserves deselections while selecting genuinely new equal participants', () => {
@@ -276,6 +321,79 @@ describe('transaction draft helpers', () => {
     });
   });
 
+  it('accepts the PostgreSQL integer cents ceiling', () => {
+    const users = ['A'];
+    const draft = {
+      ...createTransactionDraft({
+        users,
+        defaultCurrency: 'TWD',
+        rememberedPayer: 'A',
+        today: '2026-07-12'
+      }),
+      title: 'Boundary',
+      totalAmount: '21474836.47'
+    };
+
+    assert.equal(isTransactionDraftValid({ users, draft }), true);
+    assert.equal(
+      buildTransactionPayload({ id: 'boundary', users, draft })?.totalAmount,
+      21474836.47
+    );
+  });
+
+  it('rejects totals above the PostgreSQL integer cents ceiling', () => {
+    const users = ['A'];
+    const draft = {
+      ...createTransactionDraft({
+        users,
+        defaultCurrency: 'TWD',
+        rememberedPayer: 'A',
+        today: '2026-07-12'
+      }),
+      title: 'Overflow',
+      totalAmount: '21474836.48'
+    };
+
+    assert.equal(isTransactionDraftValid({ users, draft }), false);
+    assert.equal(buildTransactionPayload({ id: 'overflow', users, draft }), null);
+  });
+
+  it('rejects a negative custom split even when another split offsets it', () => {
+    const users = ['A', 'B'];
+    const draft = {
+      ...createTransactionDraft({
+        users,
+        defaultCurrency: 'TWD',
+        rememberedPayer: 'A',
+        today: '2026-07-12'
+      }),
+      title: 'Offset',
+      splitType: 'CUSTOM',
+      customSplits: { A: '-1', B: '2' }
+    };
+
+    assert.equal(isTransactionDraftValid({ users, draft }), false);
+    assert.equal(buildTransactionPayload({ id: 'negative-split', users, draft }), null);
+  });
+
+  it('rejects custom split totals above the PostgreSQL integer cents ceiling', () => {
+    const users = ['A', 'B'];
+    const draft = {
+      ...createTransactionDraft({
+        users,
+        defaultCurrency: 'TWD',
+        rememberedPayer: 'A',
+        today: '2026-07-12'
+      }),
+      title: 'Custom overflow',
+      splitType: 'CUSTOM',
+      customSplits: { A: '21474836.47', B: '0.01' }
+    };
+
+    assert.equal(isTransactionDraftValid({ users, draft }), false);
+    assert.equal(buildTransactionPayload({ id: 'custom-overflow', users, draft }), null);
+  });
+
   it('builds a repayment payload with generated custom financial fields', () => {
     const users = ['阿宁', '小林'];
     const draft = {
@@ -413,6 +531,17 @@ describe('transaction draft helpers', () => {
   it('rejects an amount that cannot produce safe integer cents', () => {
     assert.equal(
       buildRepaymentTransaction({ sender: '小林', recipient: '阿宁', amount: '1e20' }),
+      null
+    );
+  });
+
+  it('rejects a repayment above the PostgreSQL integer cents ceiling', () => {
+    assert.equal(
+      buildRepaymentTransaction({
+        sender: '小林',
+        recipient: '阿宁',
+        amount: 21474836.48
+      }),
       null
     );
   });

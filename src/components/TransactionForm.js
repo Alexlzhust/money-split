@@ -18,25 +18,20 @@ import {
   getDefaultPayer,
   getDraftCurrency,
   getEffectiveTransactionAmount,
+  getCustomSplitInputs,
   getUnavailableTransactionMembers,
   isTransactionDraftValid,
-  reconcileEqualParticipants
+  reconcileEqualParticipants,
+  selectRepaymentRecipient
 } from '../utils/transactionDraft.js';
-import { SPLIT_TYPES, createEqualSplits } from '../utils/settlements.js';
-
-function getFirstOtherUser(users, payer) {
-  return users.find((user) => user !== payer) || '';
-}
-
-function getCustomSplitInputs(users, splits = {}) {
-  return users.reduce((result, user) => {
-    result[user] = splits[user] ?? '';
-    return result;
-  }, {});
-}
+import {
+  MAX_MONEY_AMOUNT,
+  SPLIT_TYPES,
+  createEqualSplits
+} from '../utils/settlements.js';
 
 const fieldClassName =
-  'mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100 disabled:text-slate-400';
+  'mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400';
 
 export function TransactionForm({
   users,
@@ -91,9 +86,7 @@ export function TransactionForm({
         savedSplitUsers.includes(current.recipient) && !users.includes(current.recipient);
       const recipient = preserveSavedRecipient
         ? current.recipient
-        : users.includes(current.recipient) && current.recipient !== payer
-          ? current.recipient
-          : getFirstOtherUser(users, payer);
+        : selectRepaymentRecipient(users, payer, current.recipient);
 
       return {
         ...current,
@@ -161,10 +154,7 @@ export function TransactionForm({
     setDraft((current) => ({
       ...current,
       payer: nextPayer,
-      recipient:
-        current.recipient && current.recipient !== nextPayer && users.includes(current.recipient)
-          ? current.recipient
-          : getFirstOtherUser(users, nextPayer)
+      recipient: selectRepaymentRecipient(users, nextPayer, current.recipient)
     }));
   }
 
@@ -173,7 +163,7 @@ export function TransactionForm({
       ...current,
       category: nextCategory,
       recipient: isTransferCategory(nextCategory)
-        ? getFirstOtherUser(users, current.payer)
+        ? selectRepaymentRecipient(users, current.payer, current.recipient)
         : current.recipient
     }));
   }
@@ -235,7 +225,11 @@ export function TransactionForm({
   }
 
   return html`
-    <section data-testid="transaction-form-screen" className="mx-auto w-full max-w-2xl">
+    <section
+      data-testid="transaction-form-screen"
+      aria-busy=${isSubmitting}
+      className="mx-auto w-full max-w-2xl"
+    >
       <header className="mb-6 flex items-center gap-3">
         <button
           type="button"
@@ -256,7 +250,8 @@ export function TransactionForm({
         </h1>
       </header>
 
-      <form onSubmit=${handleSubmit} onFocus=${keepFocusedFieldVisible} className="space-y-5">
+      <form onSubmit=${handleSubmit} onFocus=${keepFocusedFieldVisible} aria-busy=${isSubmitting}>
+        <fieldset disabled=${isSubmitting} className="min-w-0 space-y-5 border-0 p-0">
         ${users.length === 0 &&
         html`
           <p
@@ -400,7 +395,7 @@ export function TransactionForm({
                       <label
                         key=${value}
                         data-testid=${`split-type-option-${value}`}
-                        className=${`flex min-h-10 cursor-pointer items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition ${
+                        className=${`flex min-h-10 cursor-pointer items-center justify-center rounded-md px-3 py-2 text-sm font-medium outline-none transition focus-within:ring-2 focus-within:ring-teal-600 focus-within:ring-offset-2 ${
                           draft.splitType === value
                             ? 'bg-white text-teal-800 shadow-sm'
                             : 'text-slate-600 hover:text-slate-900'
@@ -483,6 +478,7 @@ export function TransactionForm({
                                 inputMode="decimal"
                                 data-testid=${`custom-split-${user}`}
                                 min="0"
+                                max=${MAX_MONEY_AMOUNT}
                                 step="0.01"
                                 value=${draft.customSplits[user] ?? ''}
                                 onChange=${(event) =>
@@ -534,6 +530,7 @@ export function TransactionForm({
               type="number"
               inputMode="decimal"
               min="0"
+              max=${MAX_MONEY_AMOUNT}
               step="0.01"
               placeholder="0.00"
               className=${fieldClassName}
@@ -590,6 +587,7 @@ export function TransactionForm({
               : `${isEditing ? '保存修改' : '添加记录'} · ${formattedEffectiveAmount}`}
           </button>
         </div>
+        </fieldset>
       </form>
     </section>
   `;

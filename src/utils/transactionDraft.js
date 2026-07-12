@@ -6,9 +6,11 @@ import {
   normalizeCategory
 } from '../config/expenseMeta.js';
 import {
+  MAX_MONEY_CENTS,
   SPLIT_TYPES,
   createEqualSplits,
   fromCents,
+  getValidMoneyCents,
   sumSplits,
   toCents
 } from './settlements.js';
@@ -35,11 +37,16 @@ export function reconcileEqualParticipants(currentParticipants, previousUsers, n
   );
 }
 
-function getFirstOtherUser(users, payer) {
+export function selectRepaymentRecipient(rawUsers, payer, currentRecipient = '') {
+  const users = Array.isArray(rawUsers) ? rawUsers : [];
+  if (users.includes(currentRecipient) && currentRecipient !== payer) {
+    return currentRecipient;
+  }
+
   return users.find((user) => user !== payer) || '';
 }
 
-function getCustomSplitInputs(users, splits = {}) {
+export function getCustomSplitInputs(users, splits = {}) {
   return users.reduce((result, user) => {
     result[user] = splits[user] ?? '';
     return result;
@@ -69,8 +76,11 @@ export function createTransactionDraft({
   const customSplits = isEditing
     ? { ...savedSplits, ...visibleCustomSplits }
     : visibleCustomSplits;
-  const recipient =
-    savedSplitUsers.find((user) => user !== payer) || getFirstOtherUser(users, payer);
+  const recipient = selectRepaymentRecipient(
+    users,
+    payer,
+    savedSplitUsers.find((user) => user !== payer)
+  );
   const savedAmount = fromCents(toCents(editingTransaction?.totalAmount));
 
   return {
@@ -101,27 +111,40 @@ export function getUnavailableTransactionMembers(rawUsers, transaction) {
   );
 }
 
-function getNormalizedCustomSplits(users, draft) {
-  return users.reduce((result, user) => {
-    result[user] = fromCents(toCents(draft.customSplits?.[user]));
-    return result;
-  }, {});
+function getCustomSplitFinancials(users, draft) {
+  let totalCents = 0;
+  const splits = {};
+
+  for (const user of users) {
+    const cents = getValidMoneyCents(draft.customSplits?.[user], { allowEmpty: true });
+    if (cents === null) {
+      return { isValid: false, totalCents: 0, splits: {} };
+    }
+
+    totalCents += cents;
+    if (!Number.isSafeInteger(totalCents) || totalCents > MAX_MONEY_CENTS) {
+      return { isValid: false, totalCents: 0, splits: {} };
+    }
+    splits[user] = fromCents(cents);
+  }
+
+  return { isValid: true, totalCents, splits };
 }
 
 function getDraftFinancials(users, draft) {
   const isTransfer = isTransferCategory(draft.category);
-  const customSplits = getNormalizedCustomSplits(users, draft);
-  const customTotal = deriveCustomTotal(customSplits);
-  const effectiveAmount = getEffectiveTransactionAmount({
-    splitType: isTransfer ? SPLIT_TYPES.EQUAL : draft.splitType,
-    totalAmount: draft.totalAmount,
-    customSplits
-  });
+  const custom = getCustomSplitFinancials(users, draft);
+  const totalAmountCents = getValidMoneyCents(draft.totalAmount, { minimumCents: 1 });
+  const usesCustomSplits = !isTransfer && draft.splitType === SPLIT_TYPES.CUSTOM;
+  const effectiveAmountCents = usesCustomSplits ? custom.totalCents : totalAmountCents;
+  const effectiveAmount = effectiveAmountCents === null ? 0 : fromCents(effectiveAmountCents);
 
   return {
     isTransfer,
-    customSplits,
-    customTotal,
+    customSplits: custom.splits,
+    customSplitsValid: custom.isValid,
+    customTotal: fromCents(custom.totalCents),
+    totalAmountCents,
     effectiveAmount,
     equalSplits: createEqualSplits(effectiveAmount, draft.participants || []),
     repayment: isTransfer
@@ -157,11 +180,11 @@ export function isTransactionDraftValid({ users: rawUsers, draft, editingTransac
     return false;
   }
   if (draft.splitType === SPLIT_TYPES.CUSTOM) {
-    return financials.customTotal > 0;
+    return financials.customSplitsValid && financials.customTotal > 0;
   }
 
   return Boolean(
-    financials.effectiveAmount > 0 &&
+    financials.totalAmountCents !== null &&
       draft.participants?.length > 0 &&
       draft.participants.every((user) => users.includes(user))
   );
@@ -224,13 +247,12 @@ export function buildRepaymentTransaction(payload) {
   const { sender: rawSender, recipient: rawRecipient, amount } = payload || {};
   const sender = typeof rawSender === 'string' ? rawSender.trim() : '';
   const recipient = typeof rawRecipient === 'string' ? rawRecipient.trim() : '';
-  const amountCents = toCents(amount);
+  const amountCents = getValidMoneyCents(amount, { minimumCents: 1 });
   if (
     !sender ||
     !recipient ||
     sender === recipient ||
-    !Number.isSafeInteger(amountCents) ||
-    amountCents <= 0
+    amountCents === null
   ) {
     return null;
   }

@@ -1,5 +1,8 @@
 import { DEFAULT_CURRENCY, convertMoney, getCurrencyMeta } from './currency.js';
 
+export const MAX_MONEY_CENTS = 2147483647;
+export const MAX_MONEY_AMOUNT = 21474836.47;
+
 export const SPLIT_TYPES = {
   EQUAL: 'EQUAL',
   CUSTOM: 'CUSTOM'
@@ -11,6 +14,37 @@ export function toCents(value) {
     return 0;
   }
   return Math.round(Number(`${amount}e2`));
+}
+
+export function getValidMoneyCents(
+  value,
+  { allowEmpty = false, minimumCents = 0 } = {}
+) {
+  const isEmpty =
+    value == null || (typeof value === 'string' && value.trim() === '');
+  if (isEmpty) {
+    return allowEmpty && minimumCents === 0 ? 0 : null;
+  }
+
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    return null;
+  }
+
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0 || amount > MAX_MONEY_AMOUNT) {
+    return null;
+  }
+
+  const cents = toCents(amount);
+  if (
+    !Number.isSafeInteger(cents) ||
+    cents < minimumCents ||
+    cents > MAX_MONEY_CENTS
+  ) {
+    return null;
+  }
+
+  return cents;
 }
 
 export function fromCents(cents) {
