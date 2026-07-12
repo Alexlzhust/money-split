@@ -220,6 +220,27 @@ describe('transaction draft helpers', () => {
     assert.equal(draft.totalAmount, '50.01');
   });
 
+  it('prefills a new repayment from a settlement transfer', () => {
+    const draft = createTransactionDraft({
+      users: ['Alex', 'Tony'],
+      repaymentPreset: {
+        from: 'Alex',
+        to: 'Tony',
+        amount: 343.525,
+        currency: 'HKD'
+      },
+      rememberedPayer: 'Tony',
+      today: '2026-07-12'
+    });
+
+    assert.equal(draft.category, '内部转账/还款');
+    assert.equal(draft.payer, 'Alex');
+    assert.equal(draft.recipient, 'Tony');
+    assert.equal(draft.totalAmount, '343.53');
+    assert.equal(draft.currency, 'HKD');
+    assert.equal(draft.expenseDate, '2026-07-12');
+  });
+
   it('finds unavailable payer and split references without duplicates', () => {
     assert.deepEqual(
       getUnavailableTransactionMembers(['阿宁'], {

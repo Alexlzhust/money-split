@@ -36,6 +36,7 @@ const fieldClassName =
 export function TransactionForm({
   users,
   editingTransaction,
+  repaymentPreset,
   defaultCurrency,
   rememberedPayer,
   errorMessage,
@@ -46,6 +47,7 @@ export function TransactionForm({
     createTransactionDraft({
       users,
       editingTransaction,
+      repaymentPreset,
       defaultCurrency,
       rememberedPayer
     })
@@ -63,6 +65,7 @@ export function TransactionForm({
       createTransactionDraft({
         users,
         editingTransaction,
+        repaymentPreset,
         defaultCurrency,
         rememberedPayer
       })
@@ -70,7 +73,7 @@ export function TransactionForm({
     setIsSubmitting(false);
     setSaveFailure('');
     previousUsersRef.current = [...users];
-  }, [editingTransaction]);
+  }, [editingTransaction, repaymentPreset]);
 
   useEffect(() => {
     const previousUsers = previousUsersRef.current;
@@ -110,13 +113,13 @@ export function TransactionForm({
   }, [users, editingTransaction, rememberedPayer]);
 
   useEffect(() => {
-    if (!editingTransaction) {
+    if (!editingTransaction && !repaymentPreset) {
       setDraft((current) => ({
         ...current,
         currency: getDraftCurrency(null, defaultCurrency)
       }));
     }
-  }, [defaultCurrency, editingTransaction]);
+  }, [defaultCurrency, editingTransaction, repaymentPreset]);
 
   useEffect(() => {
     const visualViewport = window.visualViewport;

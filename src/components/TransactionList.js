@@ -92,7 +92,7 @@ export function TransactionList({
                           onClick=${() => onEditTransaction(transaction)}
                           disabled=${disabled}
                           title="编辑账单"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-not-allowed disabled:text-slate-300"
                         >
                           <${Edit3} className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -102,7 +102,7 @@ export function TransactionList({
                           onClick=${() => onDeleteTransaction(transaction.id)}
                           disabled=${disabled}
                           title="删除账单"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:text-slate-300"
                         >
                           <${Trash2} className="h-4 w-4" aria-hidden="true" />
                         </button>

@@ -1,6 +1,7 @@
 import { DEFAULT_CURRENCY, getCurrencyMeta } from './currency.js';
 import {
   DEFAULT_CATEGORY,
+  TRANSFER_CATEGORY,
   getTodayDate,
   isTransferCategory,
   normalizeCategory
@@ -56,16 +57,29 @@ export function getCustomSplitInputs(users, splits = {}) {
 export function createTransactionDraft({
   users: rawUsers,
   editingTransaction,
+  repaymentPreset,
   defaultCurrency,
   rememberedPayer,
   today = getTodayDate()
 } = {}) {
   const users = Array.isArray(rawUsers) ? rawUsers : [];
   const isEditing = Boolean(editingTransaction);
-  const category = normalizeCategory(editingTransaction?.category || DEFAULT_CATEGORY);
+  const hasRepaymentPreset = !isEditing && Boolean(repaymentPreset);
+  const category = isEditing
+    ? normalizeCategory(editingTransaction?.category || DEFAULT_CATEGORY)
+    : hasRepaymentPreset
+      ? TRANSFER_CATEGORY
+      : DEFAULT_CATEGORY;
   const savedPayer =
     typeof editingTransaction?.payer === 'string' ? editingTransaction.payer : '';
-  const payer = isEditing && savedPayer ? savedPayer : getDefaultPayer(users, rememberedPayer);
+  const presetPayer =
+    typeof repaymentPreset?.from === 'string' ? repaymentPreset.from : '';
+  const payer =
+    isEditing && savedPayer
+      ? savedPayer
+      : hasRepaymentPreset && users.includes(presetPayer)
+        ? presetPayer
+        : getDefaultPayer(users, rememberedPayer);
   const savedSplits = editingTransaction?.splits || {};
   const savedSplitUsers = Object.keys(savedSplits);
   const visibleSplitUsers = savedSplitUsers.filter((user) => users.includes(user));
@@ -79,9 +93,12 @@ export function createTransactionDraft({
   const recipient = selectRepaymentRecipient(
     users,
     payer,
-    savedSplitUsers.find((user) => user !== payer)
+    hasRepaymentPreset
+      ? repaymentPreset?.to
+      : savedSplitUsers.find((user) => user !== payer)
   );
   const savedAmount = fromCents(toCents(editingTransaction?.totalAmount));
+  const presetAmount = fromCents(toCents(repaymentPreset?.amount));
 
   return {
     title: editingTransaction?.title || '',
@@ -90,8 +107,12 @@ export function createTransactionDraft({
         ? String(deriveCustomTotal(customSplits))
         : isEditing
           ? String(savedAmount)
-          : '',
-    currency: getDraftCurrency(editingTransaction, defaultCurrency),
+          : hasRepaymentPreset
+            ? String(presetAmount)
+            : '',
+    currency: hasRepaymentPreset
+      ? getCurrencyMeta(repaymentPreset?.currency).code
+      : getDraftCurrency(editingTransaction, defaultCurrency),
     expenseDate: editingTransaction?.expenseDate || today,
     category,
     payer,

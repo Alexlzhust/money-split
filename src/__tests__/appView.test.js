@@ -8,6 +8,7 @@ describe('app view reducer', () => {
     assert.deepEqual(initial, {
       screen: APP_SCREENS.LEDGER,
       editingTransaction: null,
+      repaymentPreset: null,
       memberOpen: false
     });
 
@@ -28,6 +29,7 @@ describe('app view reducer', () => {
     assert.deepEqual(appViewReducer(state, { type: 'OPEN_SETTLEMENT' }), {
       screen: APP_SCREENS.SETTLEMENT,
       editingTransaction: null,
+      repaymentPreset: null,
       memberOpen: false
     });
   });
@@ -42,8 +44,31 @@ describe('app view reducer', () => {
     assert.deepEqual(appViewReducer(state, { type: 'OPEN_NEW_TRANSACTION' }), {
       screen: APP_SCREENS.TRANSACTION,
       editingTransaction: null,
+      repaymentPreset: null,
       memberOpen: false
     });
+  });
+
+  it('opens a new transaction with a settlement repayment preset', () => {
+    const repaymentPreset = {
+      from: 'Alex',
+      to: 'Tony',
+      amount: 343.52,
+      currency: 'TWD'
+    };
+
+    assert.deepEqual(
+      appViewReducer(createInitialAppView(), {
+        type: 'OPEN_REPAYMENT_TRANSACTION',
+        repaymentPreset
+      }),
+      {
+        screen: APP_SCREENS.TRANSACTION,
+        editingTransaction: null,
+        repaymentPreset,
+        memberOpen: false
+      }
+    );
   });
 
   it('closes the member overlay when opening an existing transaction', () => {
@@ -61,6 +86,7 @@ describe('app view reducer', () => {
     assert.deepEqual(editView, {
       screen: APP_SCREENS.TRANSACTION,
       editingTransaction: transaction,
+      repaymentPreset: null,
       memberOpen: false
     });
     assert.equal(editView.editingTransaction, transaction);
@@ -77,6 +103,7 @@ describe('app view reducer', () => {
     assert.deepEqual(appViewReducer(editView, { type: 'CLOSE_TRANSACTION' }), {
       screen: APP_SCREENS.LEDGER,
       editingTransaction: null,
+      repaymentPreset: null,
       memberOpen: false
     });
   });
@@ -92,11 +119,13 @@ describe('app view reducer', () => {
     assert.deepEqual(appViewReducer(state, { type: 'OPEN_LEDGER' }), {
       screen: APP_SCREENS.LEDGER,
       editingTransaction: null,
+      repaymentPreset: null,
       memberOpen: true
     });
     assert.deepEqual(appViewReducer(state, { type: 'OPEN_SETTLEMENT' }), {
       screen: APP_SCREENS.SETTLEMENT,
       editingTransaction: null,
+      repaymentPreset: null,
       memberOpen: false
     });
   });

@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Coins, Scale } from 'lucide-react';
+import { ArrowRightLeft, ChevronRight, Coins, Scale } from 'lucide-react';
 import { html } from '../lib/html.js';
 import { MoneyAmount } from './MoneyAmount.js';
 import { calculateNetBalances, simplifyDebts } from '../utils/settlements.js';
@@ -8,7 +8,8 @@ export function SettlementDashboard({
   users,
   transactions,
   settlementCurrency,
-  onSettlementCurrencyChange
+  onSettlementCurrencyChange,
+  onRecordRepayment
 }) {
   const balances = calculateNetBalances(users, transactions, settlementCurrency);
   const transfers = simplifyDebts(balances);
@@ -90,20 +91,29 @@ export function SettlementDashboard({
               <div className="space-y-2">
                 ${transfers.map(
                   (transfer) => html`
-                    <div
+                    <button
                       key=${`${transfer.from}-${transfer.to}-${transfer.amount}`}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
+                      data-testid=${`record-repayment-${transfer.from}-${transfer.to}`}
+                      type="button"
+                      onClick=${() => onRecordRepayment(transfer)}
+                      className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm transition hover:border-amber-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
                     >
-                      <span className="min-w-0 break-words font-medium text-amber-950">
-                        ${transfer.from} 需转账给 ${transfer.to}
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-words font-medium text-amber-950">
+                          ${transfer.from} 需转账给 ${transfer.to}
+                        </span>
+                        <span className="mt-1 block text-xs text-amber-700">记录还款</span>
                       </span>
-                      <${MoneyAmount}
-                        value=${transfer.amount}
-                        currency=${settlementCurrency}
-                        primaryClassName="font-semibold text-amber-800"
-                        convertedClassName="mt-0.5 text-xs text-amber-700"
-                      />
-                    </div>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <${MoneyAmount}
+                          value=${transfer.amount}
+                          currency=${settlementCurrency}
+                          primaryClassName="font-semibold text-amber-800"
+                          convertedClassName="mt-0.5 text-xs text-amber-700"
+                        />
+                        <${ChevronRight} className="h-4 w-4 text-amber-700" aria-hidden="true" />
+                      </span>
+                    </button>
                   `
                 )}
               </div>

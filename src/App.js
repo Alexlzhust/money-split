@@ -81,11 +81,7 @@ export function App() {
 
     const trigger = memberTriggerRef.current;
     const dialog = memberDialogRef.current;
-    const focusableElements = getVisibleFocusableElements(dialog);
-    const initialFocus =
-      dialog?.querySelector('[data-testid="member-name-input"]:not([disabled])') ||
-      focusableElements[0] ||
-      dialog;
+    const initialFocus = dialog;
 
     initialFocus?.focus();
 
@@ -310,6 +306,7 @@ export function App() {
           <${TransactionForm}
             users=${users}
             editingTransaction=${view.editingTransaction}
+            repaymentPreset=${view.repaymentPreset}
             defaultCurrency=${settlementCurrency}
             rememberedPayer=${lastPayer}
             errorMessage=${syncMessage}
@@ -399,6 +396,14 @@ export function App() {
                 transactions=${transactions}
                 settlementCurrency=${settlementCurrency}
                 onSettlementCurrencyChange=${setSettlementCurrency}
+                onRecordRepayment=${(transfer) =>
+                  dispatch({
+                    type: 'OPEN_REPAYMENT_TRANSACTION',
+                    repaymentPreset: {
+                      ...transfer,
+                      currency: settlementCurrency
+                    }
+                  })}
               />
           `}
       </div>
