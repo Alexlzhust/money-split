@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, UserRound } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { html } from '../lib/html.js';
 
 export function MemberManagement({ users, onAddMember }) {
@@ -18,12 +18,7 @@ export function MemberManagement({ users, onAddMember }) {
   }
 
   return html`
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
-        <${UserRound} className="h-5 w-5 text-teal-600" aria-hidden="true" />
-        <h2 className="text-base font-semibold">成员管理</h2>
-      </div>
-
+    <section>
       <form onSubmit=${handleSubmit} className="flex gap-2">
         <input
           data-testid="member-name-input"
@@ -43,8 +38,7 @@ export function MemberManagement({ users, onAddMember }) {
         </button>
       </form>
 
-      ${isDuplicate &&
-      html`<p className="mt-2 text-sm text-amber-700">该成员已存在。</p>`}
+      ${isDuplicate && html`<p className="mt-2 text-sm text-amber-700">该成员已存在。</p>`}
 
       ${users.length === 0
         ? html`
@@ -52,7 +46,7 @@ export function MemberManagement({ users, onAddMember }) {
               data-testid="empty-members-message"
               className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-sm text-slate-500"
             >
-              暂无成员，请先添加自定义人名。
+              暂无成员
             </p>
           `
         : html`

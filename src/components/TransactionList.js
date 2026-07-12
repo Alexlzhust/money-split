@@ -1,7 +1,11 @@
 import { Edit3, ListChecks, RotateCcw, Trash2 } from 'lucide-react';
 import { html } from '../lib/html.js';
 import { MoneyAmount } from './MoneyAmount.js';
-import { DEFAULT_CATEGORY, normalizeCategory } from '../config/expenseMeta.js';
+import {
+  DEFAULT_CATEGORY,
+  isTransferCategory,
+  normalizeCategory
+} from '../config/expenseMeta.js';
 import { DEFAULT_CURRENCY, getCurrencyMeta } from '../utils/currency.js';
 
 export function TransactionList({
@@ -12,8 +16,8 @@ export function TransactionList({
   onUndoLatest
 }) {
   return html`
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+    <section>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
           <${ListChecks} className="h-5 w-5 text-teal-600" aria-hidden="true" />
           <h2 className="text-base font-semibold">账单明细</h2>
@@ -44,6 +48,19 @@ export function TransactionList({
                   ).code;
                   const category = normalizeCategory(transaction.category || DEFAULT_CATEGORY);
                   const expenseDate = transaction.expenseDate || '';
+                  const isTransfer = isTransferCategory(category);
+                  const recipient = Object.keys(transaction.splits || {})[0] || '';
+                  const metadata = isTransfer
+                    ? `${transaction.payer} → ${recipient} · ${category} · ${transactionCurrency}`
+                    : [
+                        expenseDate,
+                        category,
+                        transaction.payer,
+                        transaction.splitType === 'EQUAL' ? '均分' : '自定义',
+                        transactionCurrency
+                      ]
+                        .filter(Boolean)
+                        .join(' · ');
 
                   return html`
                   <article
@@ -57,12 +74,7 @@ export function TransactionList({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <h3 className="font-semibold">${transaction.title}</h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          ${expenseDate && html`${expenseDate} · `}
-                          ${category} · ${transaction.payer} 垫付 · ${transaction.splitType === 'EQUAL'
-                            ? '均分'
-                            : '自定义'} · ${transactionCurrency}
-                        </p>
+                        <p className="mt-1 text-sm text-slate-500">${metadata}</p>
                       </div>
                       <span className="rounded-lg bg-teal-50 px-3 py-1 text-sm text-teal-700">
                         <${MoneyAmount}

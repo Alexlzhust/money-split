@@ -7,10 +7,10 @@ export function ExpenseSummary({ transactions, settlementCurrency }) {
   const summary = buildExpenseSummary(transactions, settlementCurrency);
 
   return html`
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
+    <section>
+      <div className="mb-3 flex items-center gap-2">
         <${BarChart3} className="h-5 w-5 text-teal-600" aria-hidden="true" />
-        <h2 className="text-base font-semibold">统计总览</h2>
+        <h2 className="text-base font-semibold">支出概览</h2>
       </div>
 
       ${transactions.length === 0
@@ -18,8 +18,8 @@ export function ExpenseSummary({ transactions, settlementCurrency }) {
             暂无统计
           </p>`
         : html`
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg bg-slate-100 px-3 py-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
                 <div className="text-xs font-medium text-slate-500">总支出</div>
                 <div className="mt-1 text-lg">
                   <${MoneyAmount}
@@ -30,15 +30,15 @@ export function ExpenseSummary({ transactions, settlementCurrency }) {
                   />
                 </div>
               </div>
-              <div className="rounded-lg bg-slate-100 px-3 py-3">
-                <div className="text-xs font-medium text-slate-500">账单数</div>
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                <div className="text-xs font-medium text-slate-500">记录数</div>
                 <div className="mt-1 text-lg font-semibold text-slate-950">
                   ${summary.transactionCount}
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 space-y-2">
+            <div className="mt-3 space-y-2">
               <div className="text-sm font-semibold text-slate-700">原币种合计</div>
               <div className="flex flex-wrap gap-2">
                 ${summary.totalsByCurrency.map(
@@ -60,7 +60,7 @@ export function ExpenseSummary({ transactions, settlementCurrency }) {
               </div>
             </div>
 
-            <div className="mt-4 space-y-2">
+            <div className="mt-3 space-y-2">
               <div className="text-sm font-semibold text-slate-700">分类</div>
               ${summary.categoryTotals.map((item) => {
                 const ratio =

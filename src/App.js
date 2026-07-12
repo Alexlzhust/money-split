@@ -1,7 +1,8 @@
-import { Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Plus, Trash2, UserRoundPlus, X } from 'lucide-react';
+import { useEffect, useReducer, useState } from 'react';
 import { html } from './lib/html.js';
 import { useLocalStorage } from './hooks/useLocalStorage.js';
+import { BottomNavigation } from './components/BottomNavigation.js';
 import { ExpenseSummary } from './components/ExpenseSummary.js';
 import { MemberManagement } from './components/MemberManagement.js';
 import { SettlementDashboard } from './components/SettlementDashboard.js';
@@ -21,6 +22,7 @@ import {
   getLatestTransaction,
   upsertTransactionInState
 } from './utils/transactionState.js';
+import { APP_SCREENS, appViewReducer, createInitialAppView } from './utils/appView.js';
 
 export function App() {
   const [users, setUsers] = useLocalStorage(STORAGE_KEYS.users, DEFAULT_USERS);
@@ -29,9 +31,10 @@ export function App() {
     STORAGE_KEYS.currency,
     DEFAULT_CURRENCY
   );
+  const [lastPayer, setLastPayer] = useLocalStorage(STORAGE_KEYS.lastPayer, '');
   const [persistenceMode, setPersistenceMode] = useState('loading');
   const [syncMessage, setSyncMessage] = useState('');
-  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [view, dispatch] = useReducer(appViewReducer, undefined, createInitialAppView);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,7 +64,6 @@ export function App() {
   function applyRemoteState(state) {
     setUsers(state.users || []);
     setTransactions(state.transactions || []);
-    setEditingTransaction(null);
     setSyncMessage('');
   }
 
@@ -89,6 +91,9 @@ export function App() {
             ? await updateRemoteTransaction(transaction)
             : await createRemoteTransaction(transaction)
         );
+        setLastPayer(transaction.payer);
+        setSyncMessage('');
+        dispatch({ type: 'CLOSE_TRANSACTION' });
         return true;
       } catch (error) {
         setSyncMessage(error.message);
@@ -97,8 +102,9 @@ export function App() {
     }
 
     setTransactions((current) => upsertTransactionInState(current, transaction));
-    setEditingTransaction(null);
+    setLastPayer(transaction.payer);
     setSyncMessage('');
+    dispatch({ type: 'CLOSE_TRANSACTION' });
     return true;
   }
 
@@ -114,7 +120,6 @@ export function App() {
     }
 
     setTransactions((current) => deleteTransactionFromState(current, id));
-    setEditingTransaction((current) => (current?.id === id ? null : current));
     setSyncMessage('');
     return true;
   }
@@ -127,6 +132,8 @@ export function App() {
   }
 
   async function resetData() {
+    dispatch({ type: 'CLOSE_TRANSACTION' });
+
     if (persistenceMode === 'database') {
       try {
         applyRemoteState(await resetRemoteState());
@@ -138,76 +145,160 @@ export function App() {
 
     setUsers(DEFAULT_USERS);
     setTransactions([]);
-    setEditingTransaction(null);
     setSyncMessage('');
   }
 
+  function navigate(screen) {
+    dispatch({
+      type: screen === APP_SCREENS.SETTLEMENT ? 'OPEN_SETTLEMENT' : 'OPEN_LEDGER'
+    });
+  }
+
+  const statusLabel =
+    persistenceMode === 'database'
+      ? '数据库已连接'
+      : persistenceMode === 'loading'
+        ? '正在连接数据库'
+        : '本地模式';
+
+  const syncError =
+    syncMessage &&
+    html`
+      <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+        ${syncMessage}
+      </p>
+    `;
+
+  if (view.screen === APP_SCREENS.TRANSACTION) {
+    return html`
+      <main className="min-h-screen bg-slate-50 px-4 py-4 sm:px-6 sm:py-6">
+        <div className="mx-auto max-w-3xl">
+          ${syncError}
+          <${TransactionForm}
+            users=${users}
+            editingTransaction=${view.editingTransaction}
+            defaultCurrency=${settlementCurrency}
+            rememberedPayer=${lastPayer}
+            onCancelEdit=${() => dispatch({ type: 'CLOSE_TRANSACTION' })}
+            onSaveTransaction=${saveTransaction}
+          />
+        </div>
+      </main>
+    `;
+  }
+
   return html`
-    <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">
-              Multi-party Expense Splitter
-            </p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-950 sm:text-4xl">多人分账应用</h1>
-            <p className="mt-2 text-sm text-slate-500">
-              ${persistenceMode === 'database'
-                ? '数据库已连接'
-                : persistenceMode === 'loading'
-                  ? '正在连接数据库'
-              : '本地模式'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick=${resetData}
-            title="清空成员和账单"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-rose-300 hover:text-rose-700"
+    <main className="min-h-screen bg-slate-50 px-4 pb-40 pt-4 sm:px-6 sm:pt-6">
+      <div className="mx-auto max-w-3xl">
+        ${view.screen === APP_SCREENS.LEDGER
+          ? html`
+              <header className="mb-5 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-2xl font-bold text-slate-950">Money</h1>
+                  <p className="mt-0.5 text-xs text-slate-500">${statusLabel}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick=${() => dispatch({ type: 'OPEN_MEMBERS' })}
+                  title="管理成员"
+                  aria-label="管理成员"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-teal-300 hover:text-teal-700"
+                >
+                  <${UserRoundPlus} className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick=${resetData}
+                  title="清空成员和账单"
+                  aria-label="清空成员和账单"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-rose-300 hover:text-rose-700"
+                >
+                  <${Trash2} className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </header>
+
+              ${syncError}
+
+              <div className="space-y-7">
+                <${ExpenseSummary}
+                  transactions=${transactions}
+                  settlementCurrency=${settlementCurrency}
+                />
+                <${TransactionList}
+                  transactions=${transactions}
+                  editingTransactionId=""
+                  onDeleteTransaction=${deleteTransaction}
+                  onEditTransaction=${(transaction) =>
+                    dispatch({ type: 'OPEN_EDIT_TRANSACTION', transaction })}
+                  onUndoLatest=${undoLatestTransaction}
+                />
+              </div>
+
+              <button
+                data-testid="open-transaction-form"
+                type="button"
+                onClick=${() => dispatch({ type: 'OPEN_NEW_TRANSACTION' })}
+                title="新增账单"
+                aria-label="新增账单"
+                className="fixed bottom-20 right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 sm:right-[max(1.5rem,calc((100vw-48rem)/2+1.5rem))]"
+              >
+                <${Plus} className="h-6 w-6" aria-hidden="true" />
+              </button>
+            `
+          : html`
+              <header className="mb-5">
+                <h1 className="text-2xl font-bold text-slate-950">结算</h1>
+                <p className="mt-0.5 text-xs text-slate-500">${statusLabel}</p>
+              </header>
+
+              ${syncError}
+
+              <${SettlementDashboard}
+                users=${users}
+                transactions=${transactions}
+                settlementCurrency=${settlementCurrency}
+                onSettlementCurrencyChange=${setSettlementCurrency}
+              />
+          `}
+      </div>
+
+      ${view.screen === APP_SCREENS.LEDGER &&
+      view.memberOpen &&
+      html`
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-slate-950/40 p-4 sm:items-center sm:justify-center"
+          onMouseDown=${(event) => {
+            if (event.target === event.currentTarget) {
+              dispatch({ type: 'CLOSE_MEMBERS' });
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="member-dialog-title"
+            className="w-full max-w-lg rounded-lg bg-white p-4 shadow-xl"
           >
-            <${Trash2} className="h-4 w-4" aria-hidden="true" />
-            重置
-          </button>
-        </header>
-
-        ${syncMessage &&
-        html`
-          <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
-            ${syncMessage}
-          </p>
-        `}
-
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
-          <div className="space-y-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 id="member-dialog-title" className="text-base font-semibold text-slate-950">
+                成员管理
+              </h2>
+              <button
+                type="button"
+                onClick=${() => dispatch({ type: 'CLOSE_MEMBERS' })}
+                title="关闭成员管理"
+                aria-label="关闭成员管理"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                <${X} className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
             <${MemberManagement} users=${users} onAddMember=${addMember} />
-            <${TransactionForm}
-              users=${users}
-              editingTransaction=${editingTransaction}
-              onCancelEdit=${() => setEditingTransaction(null)}
-              onSaveTransaction=${saveTransaction}
-            />
-          </div>
-          <div className="space-y-4">
-            <${ExpenseSummary}
-              transactions=${transactions}
-              settlementCurrency=${settlementCurrency}
-            />
-            <${SettlementDashboard}
-              users=${users}
-              transactions=${transactions}
-              settlementCurrency=${settlementCurrency}
-              onSettlementCurrencyChange=${setSettlementCurrency}
-            />
-            <${TransactionList}
-              transactions=${transactions}
-              editingTransactionId=${editingTransaction?.id || ''}
-              onDeleteTransaction=${deleteTransaction}
-              onEditTransaction=${setEditingTransaction}
-              onUndoLatest=${undoLatestTransaction}
-            />
           </div>
         </div>
-      </div>
+      `}
+
+      <${BottomNavigation} activeScreen=${view.screen} onNavigate=${navigate} />
     </main>
   `;
 }

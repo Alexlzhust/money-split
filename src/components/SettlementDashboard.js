@@ -15,13 +15,13 @@ export function SettlementDashboard({
   const rateLabel = getCurrencyRateLabel(settlementCurrency);
 
   return html`
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section>
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <${Scale} className="h-5 w-5 text-teal-600" aria-hidden="true" />
           <h2 className="text-base font-semibold">清算看板</h2>
         </div>
-        <label className="block text-sm font-medium text-slate-700 sm:w-44">
+        <label className="block w-40 shrink-0 text-sm font-medium text-slate-700 sm:w-44">
           <span className="flex items-center gap-2">
             <${Coins} className="h-4 w-4 text-amber-600" aria-hidden="true" />
             结算币种
