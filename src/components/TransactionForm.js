@@ -10,23 +10,19 @@ import {
 } from 'lucide-react';
 import { html } from '../lib/html.js';
 import { MoneyAmount } from './MoneyAmount.js';
-import {
-  DEFAULT_CATEGORY,
-  EXPENSE_CATEGORIES,
-  getTodayDate,
-  isTransferCategory,
-  normalizeCategory
-} from '../config/expenseMeta.js';
+import { EXPENSE_CATEGORIES, isTransferCategory } from '../config/expenseMeta.js';
 import { CURRENCIES, formatMoney, getCurrencyRateLabel } from '../utils/currency.js';
 import {
-  buildRepaymentTransaction,
-  deriveCustomTotal,
+  buildTransactionPayload,
+  createTransactionDraft,
   getDefaultPayer,
   getDraftCurrency,
   getEffectiveTransactionAmount,
+  getUnavailableTransactionMembers,
+  isTransactionDraftValid,
   reconcileEqualParticipants
 } from '../utils/transactionDraft.js';
-import { SPLIT_TYPES, createEqualSplits, fromCents, toCents } from '../utils/settlements.js';
+import { SPLIT_TYPES, createEqualSplits } from '../utils/settlements.js';
 
 function getFirstOtherUser(users, payer) {
   return users.find((user) => user !== payer) || '';
@@ -39,41 +35,6 @@ function getCustomSplitInputs(users, splits = {}) {
   }, {});
 }
 
-function createDraft(users, editingTransaction, defaultCurrency, rememberedPayer) {
-  const isEditing = Boolean(editingTransaction);
-  const category = normalizeCategory(editingTransaction?.category || DEFAULT_CATEGORY);
-  const payer = users.includes(editingTransaction?.payer)
-    ? editingTransaction.payer
-    : getDefaultPayer(users, rememberedPayer);
-  const savedSplits = editingTransaction?.splits || {};
-  const splitUsers = Object.keys(savedSplits).filter((user) => users.includes(user));
-  const splitType = Object.values(SPLIT_TYPES).includes(editingTransaction?.splitType)
-    ? editingTransaction.splitType
-    : SPLIT_TYPES.EQUAL;
-  const customSplits = getCustomSplitInputs(users, savedSplits);
-  const recipient =
-    splitUsers.find((user) => user !== payer) || getFirstOtherUser(users, payer);
-  const savedAmount = fromCents(toCents(editingTransaction?.totalAmount));
-
-  return {
-    title: editingTransaction?.title || '',
-    totalAmount:
-      isEditing && splitType === SPLIT_TYPES.CUSTOM && !isTransferCategory(category)
-        ? String(deriveCustomTotal(customSplits))
-        : isEditing
-          ? String(savedAmount)
-          : '',
-    currency: getDraftCurrency(editingTransaction, defaultCurrency),
-    expenseDate: editingTransaction?.expenseDate || getTodayDate(),
-    category,
-    payer,
-    recipient,
-    splitType,
-    participants: isEditing && splitUsers.length ? splitUsers : [...users],
-    customSplits
-  };
-}
-
 const fieldClassName =
   'mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100 disabled:text-slate-400';
 
@@ -82,31 +43,55 @@ export function TransactionForm({
   editingTransaction,
   defaultCurrency,
   rememberedPayer,
+  errorMessage,
   onCancelEdit,
   onSaveTransaction
 }) {
   const [draft, setDraft] = useState(() =>
-    createDraft(users, editingTransaction, defaultCurrency, rememberedPayer)
+    createTransactionDraft({
+      users,
+      editingTransaction,
+      defaultCurrency,
+      rememberedPayer
+    })
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveFailure, setSaveFailure] = useState('');
   const previousUsersRef = useRef([...users]);
+  const failureAlertRef = useRef(null);
   const isEditing = Boolean(editingTransaction);
   const isTransfer = isTransferCategory(draft.category);
 
   useEffect(() => {
-    setDraft(createDraft(users, editingTransaction, defaultCurrency, rememberedPayer));
+    setDraft(
+      createTransactionDraft({
+        users,
+        editingTransaction,
+        defaultCurrency,
+        rememberedPayer
+      })
+    );
     setIsSubmitting(false);
+    setSaveFailure('');
     previousUsersRef.current = [...users];
   }, [editingTransaction]);
 
   useEffect(() => {
     const previousUsers = previousUsersRef.current;
     setDraft((current) => {
-      const payer = users.includes(current.payer)
+      const savedSplitUsers = Object.keys(editingTransaction?.splits || {});
+      const preserveSavedPayer =
+        current.payer === editingTransaction?.payer && !users.includes(current.payer);
+      const payer = preserveSavedPayer
         ? current.payer
-        : getDefaultPayer(users, rememberedPayer);
-      const recipient =
-        users.includes(current.recipient) && current.recipient !== payer
+        : users.includes(current.payer)
+          ? current.payer
+          : getDefaultPayer(users, rememberedPayer);
+      const preserveSavedRecipient =
+        savedSplitUsers.includes(current.recipient) && !users.includes(current.recipient);
+      const recipient = preserveSavedRecipient
+        ? current.recipient
+        : users.includes(current.recipient) && current.recipient !== payer
           ? current.recipient
           : getFirstOtherUser(users, payer);
 
@@ -119,7 +104,12 @@ export function TransactionForm({
           previousUsers,
           users
         ),
-        customSplits: getCustomSplitInputs(users, current.customSplits)
+        customSplits: editingTransaction
+          ? {
+              ...current.customSplits,
+              ...getCustomSplitInputs(users, current.customSplits)
+            }
+          : getCustomSplitInputs(users, current.customSplits)
       };
     });
     previousUsersRef.current = [...users];
@@ -134,7 +124,20 @@ export function TransactionForm({
     }
   }, [defaultCurrency, editingTransaction]);
 
-  const customTotal = deriveCustomTotal(draft.customSplits);
+  useEffect(() => {
+    if (!saveFailure) {
+      return;
+    }
+
+    const alert = failureAlertRef.current;
+    const action = alert?.closest('.safe-area-action');
+    const lastField = action?.previousElementSibling?.querySelector('input, select');
+    if (lastField && lastField.getBoundingClientRect().bottom > action.getBoundingClientRect().top) {
+      lastField.scrollIntoView({ block: 'center' });
+    }
+    alert?.focus({ preventScroll: true });
+  }, [saveFailure, errorMessage]);
+
   const effectiveAmount = getEffectiveTransactionAmount({
     splitType: isTransfer ? SPLIT_TYPES.EQUAL : draft.splitType,
     totalAmount: draft.totalAmount,
@@ -144,26 +147,11 @@ export function TransactionForm({
     () => createEqualSplits(effectiveAmount, draft.participants),
     [effectiveAmount, draft.participants]
   );
-  const repayment = isTransfer
-    ? buildRepaymentTransaction({
-        sender: draft.payer,
-        recipient: draft.recipient,
-        amount: draft.totalAmount
-      })
-    : null;
-  const hasBaseFields = Boolean(
-    draft.expenseDate && users.includes(draft.payer) && draft.currency
-  );
-  const canSubmit = isTransfer
-    ? Boolean(hasBaseFields && users.length >= 2 && repayment)
-    : Boolean(
-        hasBaseFields &&
-          draft.title.trim() &&
-          (draft.splitType === SPLIT_TYPES.CUSTOM ? customTotal > 0 : effectiveAmount > 0) &&
-          (draft.splitType !== SPLIT_TYPES.EQUAL || draft.participants.length > 0)
-      );
+  const unavailableMembers = getUnavailableTransactionMembers(users, editingTransaction);
+  const canSubmit = isTransactionDraftValid({ users, draft, editingTransaction });
   const rateLabel = getCurrencyRateLabel(draft.currency);
   const formattedEffectiveAmount = formatMoney(effectiveAmount, draft.currency).primary;
+  const failureMessage = saveFailure ? errorMessage || saveFailure : '';
 
   function updateDraft(values) {
     setDraft((current) => ({ ...current, ...values }));
@@ -220,35 +208,27 @@ export function TransactionForm({
     }
 
     const id = editingTransaction?.id || crypto.randomUUID();
-    const transaction = isTransfer
-      ? {
-          id,
-          currency: draft.currency,
-          expenseDate: draft.expenseDate,
-          category: draft.category,
-          ...repayment
-        }
-      : {
-          id,
-          title: draft.title.trim(),
-          totalAmount: effectiveAmount,
-          currency: draft.currency,
-          expenseDate: draft.expenseDate,
-          category: draft.category,
-          payer: draft.payer,
-          splitType: draft.splitType,
-          splits:
-            draft.splitType === SPLIT_TYPES.EQUAL
-              ? equalSplits
-              : users.reduce((result, user) => {
-                  result[user] = fromCents(toCents(draft.customSplits[user]));
-                  return result;
-                }, {})
-        };
+    const transaction = buildTransactionPayload({
+      id,
+      users,
+      draft,
+      editingTransaction
+    });
+    if (!transaction) {
+      return;
+    }
 
+    setSaveFailure('');
     setIsSubmitting(true);
     try {
-      await onSaveTransaction(transaction);
+      const didSave = await onSaveTransaction(transaction);
+      if (!didSave) {
+        setSaveFailure('保存失败，请重试');
+      } else {
+        setSaveFailure('');
+      }
+    } catch {
+      setSaveFailure('保存失败，请重试');
     } finally {
       setIsSubmitting(false);
     }
@@ -259,10 +239,15 @@ export function TransactionForm({
       <header className="mb-6 flex items-center gap-3">
         <button
           type="button"
-          onClick=${onCancelEdit}
+          onClick=${() => {
+            if (!isSubmitting) {
+              onCancelEdit();
+            }
+          }}
+          disabled=${isSubmitting}
           title="返回账本"
           aria-label="返回账本"
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-teal-300 hover:text-teal-700"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
         >
           <${ArrowLeft} className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -345,6 +330,11 @@ export function TransactionForm({
                     disabled=${users.length === 0}
                     className=${fieldClassName}
                   >
+                    ${draft.payer &&
+                    !users.includes(draft.payer) &&
+                    html`<option value=${draft.payer} disabled>
+                      不可用：${draft.payer}
+                    </option>`}
                     ${users.map(
                       (user) => html`<option key=${user} value=${user}>${user}</option>`
                     )}
@@ -363,6 +353,11 @@ export function TransactionForm({
                     disabled=${users.length < 2}
                     className=${fieldClassName}
                   >
+                    ${draft.recipient &&
+                    !users.includes(draft.recipient) &&
+                    html`<option value=${draft.recipient} disabled>
+                      不可用：${draft.recipient}
+                    </option>`}
                     ${users
                       .filter((user) => user !== draft.payer)
                       .map((user) => html`<option key=${user} value=${user}>${user}</option>`)}
@@ -385,6 +380,11 @@ export function TransactionForm({
                   disabled=${users.length === 0}
                   className=${fieldClassName}
                 >
+                  ${draft.payer &&
+                  !users.includes(draft.payer) &&
+                  html`<option value=${draft.payer} disabled>
+                    不可用：${draft.payer}
+                  </option>`}
                   ${users.map((user) => html`<option key=${user} value=${user}>${user}</option>`)}
                 </select>
               </label>
@@ -544,14 +544,41 @@ export function TransactionForm({
         <div className="safe-area-action sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:mx-0 sm:rounded-t-lg sm:border-x">
           <div className="mb-3 flex min-h-11 items-center justify-between gap-4">
             <span className="text-sm font-medium text-slate-600">总额</span>
-            <span data-testid="derived-total" className="min-w-0 text-lg text-slate-950">
+            <output
+              data-testid="derived-total"
+              aria-live="polite"
+              aria-label="交易总额"
+              className="min-w-0 text-lg text-slate-950"
+            >
               <${MoneyAmount}
                 value=${effectiveAmount}
                 currency=${draft.currency}
                 primaryClassName="font-semibold"
               />
-            </span>
+            </output>
           </div>
+          ${unavailableMembers.length > 0 &&
+          html`
+            <p
+              role="alert"
+              data-testid="unavailable-members-alert"
+              className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
+            >
+              成员不可用：${unavailableMembers.join('、')}。请返回恢复成员后再保存。
+            </p>
+          `}
+          ${failureMessage &&
+          html`
+            <p
+              ref=${failureAlertRef}
+              role="alert"
+              tabIndex="-1"
+              data-testid="transaction-save-error"
+              className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 outline-none focus:ring-2 focus:ring-rose-300"
+            >
+              ${failureMessage}
+            </p>
+          `}
           <button
             data-testid="add-transaction-button"
             type="submit"

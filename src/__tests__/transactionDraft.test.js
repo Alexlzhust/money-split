@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  buildTransactionPayload,
   buildRepaymentTransaction,
+  createTransactionDraft,
   deriveCustomTotal,
   getDefaultPayer,
   getDraftCurrency,
   getEffectiveTransactionAmount,
+  getUnavailableTransactionMembers,
+  isTransactionDraftValid,
   reconcileEqualParticipants
 } from '../utils/transactionDraft.js';
 import { calculateNetBalances } from '../utils/settlements.js';
@@ -85,6 +89,270 @@ describe('transaction draft helpers', () => {
       '小林'
     ]);
     assert.deepEqual(reconcileEqualParticipants(['阿宁'], ['阿宁'], null), []);
+  });
+
+  it('initializes a new transaction draft from current defaults', () => {
+    assert.deepEqual(
+      createTransactionDraft({
+        users: ['阿宁', '小林'],
+        editingTransaction: null,
+        defaultCurrency: 'HKD',
+        rememberedPayer: '小林',
+        today: '2026-07-12'
+      }),
+      {
+        title: '',
+        totalAmount: '',
+        currency: 'HKD',
+        expenseDate: '2026-07-12',
+        category: '其他',
+        payer: '小林',
+        recipient: '阿宁',
+        splitType: 'EQUAL',
+        participants: ['阿宁', '小林'],
+        customSplits: { 阿宁: '', 小林: '' }
+      }
+    );
+  });
+
+  it('derives a custom edit total from saved splits instead of the saved total', () => {
+    const draft = createTransactionDraft({
+      users: ['阿宁', '小林'],
+      editingTransaction: {
+        title: '晚餐',
+        totalAmount: 999,
+        currency: 'TWD',
+        expenseDate: '2026-07-01',
+        category: '餐饮',
+        payer: '阿宁',
+        splitType: 'CUSTOM',
+        splits: { 阿宁: 10.1, 小林: 20.21 }
+      },
+      defaultCurrency: 'HKD',
+      rememberedPayer: '小林',
+      today: '2026-07-12'
+    });
+
+    assert.equal(draft.totalAmount, '30.31');
+    assert.deepEqual(draft.customSplits, { 阿宁: 10.1, 小林: 20.21 });
+  });
+
+  it('restores repayment sender, recipient, and cent-rounded amount', () => {
+    const draft = createTransactionDraft({
+      users: ['阿宁', '小林'],
+      editingTransaction: {
+        title: 'ignored',
+        totalAmount: 50.005,
+        currency: 'TWD',
+        expenseDate: '2026-07-01',
+        category: '内部转账/还款',
+        payer: '小林',
+        splitType: 'CUSTOM',
+        splits: { 阿宁: 50.01 }
+      },
+      defaultCurrency: 'HKD',
+      rememberedPayer: '阿宁',
+      today: '2026-07-12'
+    });
+
+    assert.equal(draft.payer, '小林');
+    assert.equal(draft.recipient, '阿宁');
+    assert.equal(draft.totalAmount, '50.01');
+  });
+
+  it('finds unavailable payer and split references without duplicates', () => {
+    assert.deepEqual(
+      getUnavailableTransactionMembers(['阿宁'], {
+        payer: '小林',
+        splits: { 阿宁: 10, 小林: 10, 小周: 10 }
+      }),
+      ['小林', '小周']
+    );
+    assert.deepEqual(
+      getUnavailableTransactionMembers(['阿宁', '小林'], {
+        payer: '阿宁',
+        splits: { 阿宁: 10, 小林: 10 }
+      }),
+      []
+    );
+  });
+
+  it('retains unavailable custom split values for safe member restoration', () => {
+    const draft = createTransactionDraft({
+      users: ['阿宁'],
+      editingTransaction: {
+        title: '旧自定义',
+        totalAmount: 20,
+        currency: 'TWD',
+        expenseDate: '2026-07-01',
+        category: '其他',
+        payer: '阿宁',
+        splitType: 'CUSTOM',
+        splits: { 阿宁: 10, 小林: 10 }
+      },
+      defaultCurrency: 'TWD',
+      rememberedPayer: '阿宁',
+      today: '2026-07-12'
+    });
+
+    assert.deepEqual(draft.customSplits, { 阿宁: 10, 小林: 10 });
+  });
+
+  it('accepts positive custom drafts and rejects zero custom drafts', () => {
+    const users = ['阿宁', '小林'];
+    const baseDraft = createTransactionDraft({
+      users,
+      defaultCurrency: 'TWD',
+      rememberedPayer: '阿宁',
+      today: '2026-07-12'
+    });
+    const positiveDraft = {
+      ...baseDraft,
+      title: '晚餐',
+      splitType: 'CUSTOM',
+      customSplits: { 阿宁: '10.10', 小林: '20.21' }
+    };
+
+    assert.equal(isTransactionDraftValid({ users, draft: positiveDraft }), true);
+    assert.equal(
+      isTransactionDraftValid({
+        users,
+        draft: { ...positiveDraft, customSplits: { 阿宁: '', 小林: '0' } }
+      }),
+      false
+    );
+  });
+
+  it('builds a cent-normalized custom payload whose splits equal its total', () => {
+    const users = ['阿宁', '小林'];
+    const draft = {
+      ...createTransactionDraft({
+        users,
+        defaultCurrency: 'TWD',
+        rememberedPayer: '阿宁',
+        today: '2026-07-12'
+      }),
+      title: '晚餐',
+      splitType: 'CUSTOM',
+      customSplits: { 阿宁: '10.105', 小林: '20.205' }
+    };
+
+    assert.deepEqual(buildTransactionPayload({ id: 'custom-1', users, draft }), {
+      id: 'custom-1',
+      title: '晚餐',
+      totalAmount: 30.32,
+      currency: 'TWD',
+      expenseDate: '2026-07-12',
+      category: '其他',
+      payer: '阿宁',
+      splitType: 'CUSTOM',
+      splits: { 阿宁: 10.11, 小林: 20.21 }
+    });
+  });
+
+  it('builds an equal payload with cent-safe shares and exact total', () => {
+    const users = ['阿宁', '小林'];
+    const draft = {
+      ...createTransactionDraft({
+        users,
+        defaultCurrency: 'HKD',
+        rememberedPayer: '小林',
+        today: '2026-07-12'
+      }),
+      title: '午餐',
+      totalAmount: '90.005'
+    };
+
+    assert.deepEqual(buildTransactionPayload({ id: 'equal-1', users, draft }), {
+      id: 'equal-1',
+      title: '午餐',
+      totalAmount: 90.01,
+      currency: 'HKD',
+      expenseDate: '2026-07-12',
+      category: '其他',
+      payer: '小林',
+      splitType: 'EQUAL',
+      splits: { 阿宁: 45.01, 小林: 45 }
+    });
+  });
+
+  it('builds a repayment payload with generated custom financial fields', () => {
+    const users = ['阿宁', '小林'];
+    const draft = {
+      ...createTransactionDraft({
+        users,
+        defaultCurrency: 'TWD',
+        rememberedPayer: '小林',
+        today: '2026-07-12'
+      }),
+      category: '内部转账/还款',
+      payer: '小林',
+      recipient: '阿宁',
+      totalAmount: '50.005'
+    };
+
+    assert.deepEqual(buildTransactionPayload({ id: 'repayment-1', users, draft }), {
+      id: 'repayment-1',
+      currency: 'TWD',
+      expenseDate: '2026-07-12',
+      category: '内部转账/还款',
+      title: '小林 还款给 阿宁',
+      payer: '小林',
+      splitType: 'CUSTOM',
+      totalAmount: 50.01,
+      splits: { 阿宁: 50.01 }
+    });
+  });
+
+  it('blocks custom and equal legacy records with unavailable references', () => {
+    const users = ['阿宁'];
+    const records = [
+      {
+        id: 'legacy-custom',
+        title: '旧自定义',
+        totalAmount: 20,
+        currency: 'TWD',
+        expenseDate: '2026-07-01',
+        category: '其他',
+        payer: '小林',
+        splitType: 'CUSTOM',
+        splits: { 阿宁: 10, 小林: 10 }
+      },
+      {
+        id: 'legacy-equal',
+        title: '旧均分',
+        totalAmount: 20,
+        currency: 'TWD',
+        expenseDate: '2026-07-01',
+        category: '其他',
+        payer: '阿宁',
+        splitType: 'EQUAL',
+        splits: { 阿宁: 10, 小林: 10 }
+      }
+    ];
+
+    records.forEach((editingTransaction) => {
+      const draft = createTransactionDraft({
+        users,
+        editingTransaction,
+        defaultCurrency: 'TWD',
+        rememberedPayer: '阿宁',
+        today: '2026-07-12'
+      });
+      assert.equal(
+        isTransactionDraftValid({ users, draft, editingTransaction }),
+        false
+      );
+      assert.equal(
+        buildTransactionPayload({
+          id: editingTransaction.id,
+          users,
+          draft,
+          editingTransaction
+        }),
+        null
+      );
+    });
   });
 
   it('prefers a saved transaction currency over the settlement currency', () => {

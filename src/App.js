@@ -184,6 +184,7 @@ export function App() {
     }
 
     const isEditing = transactions.some((item) => item.id === transaction.id);
+    setSyncMessage('');
     if (persistenceMode === 'database') {
       setRemoteMutationPending(true);
       try {
@@ -306,12 +307,12 @@ export function App() {
     return html`
       <main className="min-h-screen bg-slate-50 px-4 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto max-w-3xl">
-          ${syncError}
           <${TransactionForm}
             users=${users}
             editingTransaction=${view.editingTransaction}
             defaultCurrency=${settlementCurrency}
             rememberedPayer=${lastPayer}
+            errorMessage=${syncMessage}
             onCancelEdit=${() => dispatch({ type: 'CLOSE_TRANSACTION' })}
             onSaveTransaction=${saveTransaction}
           />
