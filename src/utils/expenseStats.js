@@ -1,4 +1,4 @@
-import { DEFAULT_CATEGORY, normalizeCategory } from '../config/expenseMeta.js';
+import { DEFAULT_CATEGORY, isTransferCategory, normalizeCategory } from '../config/expenseMeta.js';
 import { DEFAULT_CURRENCY, convertMoney, getCurrencyMeta } from './currency.js';
 
 function roundAmount(value) {
@@ -16,6 +16,10 @@ export function buildExpenseSummary(transactions, settlementCurrency = 'CNY') {
   let totalInSettlementCurrency = 0;
 
   transactions.forEach((transaction) => {
+    if (isTransferCategory(transaction.category)) {
+      return;
+    }
+
     const currency = getCurrencyMeta(transaction.currency || DEFAULT_CURRENCY).code;
     const amount = Number(transaction.totalAmount) || 0;
     const category = normalizeCategory(transaction.category || DEFAULT_CATEGORY);

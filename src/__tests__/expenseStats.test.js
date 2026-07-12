@@ -41,4 +41,29 @@ describe('expense summary utilities', () => {
 
     assert.deepEqual(summary.categoryTotals, [{ category: '其他', amount: 6.36 }]);
   });
+
+  it('excludes repayment records from expense totals while preserving transaction count', () => {
+    const summary = buildExpenseSummary(
+      [
+        {
+          id: 'expense',
+          totalAmount: 300,
+          currency: 'TWD',
+          category: '餐饮'
+        },
+        {
+          id: 'repayment',
+          totalAmount: 120,
+          currency: 'TWD',
+          category: '内部转账/还款'
+        }
+      ],
+      'TWD'
+    );
+
+    assert.equal(summary.transactionCount, 2);
+    assert.equal(summary.totalInSettlementCurrency, 300);
+    assert.deepEqual(summary.totalsByCurrency, [{ currency: 'TWD', amount: 300 }]);
+    assert.deepEqual(summary.categoryTotals, [{ category: '餐饮', amount: 300 }]);
+  });
 });

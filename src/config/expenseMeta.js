@@ -1,6 +1,20 @@
 export const DEFAULT_CATEGORY = '其他';
+export const TRANSFER_CATEGORY = '内部转账/还款';
 
-export const EXPENSE_CATEGORIES = ['餐饮', '交通', '住宿', '购物', '通讯', '门票', DEFAULT_CATEGORY];
+export const EXPENSE_CATEGORIES = [
+  '餐饮',
+  '交通',
+  '住宿',
+  '购物',
+  '通讯',
+  '门票',
+  DEFAULT_CATEGORY,
+  TRANSFER_CATEGORY
+];
+
+export function isTransferCategory(category) {
+  return String(category || '').trim() === TRANSFER_CATEGORY;
+}
 
 export function normalizeCategory(category) {
   const value = String(category || '').trim();
