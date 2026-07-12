@@ -232,12 +232,9 @@ export function getDefaultPayer(users, rememberedPayer) {
   return currentUsers[0] || '';
 }
 
-export function getDraftCurrency(editingTransaction, settlementCurrency) {
+export function getDraftCurrency(editingTransaction) {
   if (editingTransaction?.currency) {
     return getCurrencyMeta(editingTransaction.currency).code;
-  }
-  if (settlementCurrency) {
-    return getCurrencyMeta(settlementCurrency).code;
   }
 
   return DEFAULT_CURRENCY;

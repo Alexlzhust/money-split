@@ -42,6 +42,10 @@ describe('transaction form contracts', () => {
     assert.match(transactionFormSource, /focus-within:ring-2/);
     assert.match(transactionFormSource, /focus-within:ring-teal-600/);
   });
+
+  it('uses 16px controls on mobile to prevent browser auto-zoom', () => {
+    assert.match(transactionFormSource, /text-base sm:text-sm/);
+  });
 });
 
 describe('transaction draft helpers', () => {
@@ -148,7 +152,7 @@ describe('transaction draft helpers', () => {
       {
         title: '',
         totalAmount: '',
-        currency: 'HKD',
+        currency: 'TWD',
         expenseDate: '2026-07-12',
         category: '其他',
         payer: '小林',
@@ -312,7 +316,7 @@ describe('transaction draft helpers', () => {
       id: 'equal-1',
       title: '午餐',
       totalAmount: 90.01,
-      currency: 'HKD',
+      currency: 'TWD',
       expenseDate: '2026-07-12',
       category: '其他',
       payer: '小林',
@@ -473,8 +477,8 @@ describe('transaction draft helpers', () => {
     });
   });
 
-  it('prefers a saved transaction currency over the settlement currency', () => {
-    assert.equal(getDraftCurrency(null, 'HKD'), 'HKD');
+  it('defaults new transactions to TWD and preserves saved currency when editing', () => {
+    assert.equal(getDraftCurrency(null, 'HKD'), 'TWD');
     assert.equal(getDraftCurrency({ currency: 'CNY' }, 'HKD'), 'CNY');
   });
 
