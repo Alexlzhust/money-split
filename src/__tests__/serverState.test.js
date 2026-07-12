@@ -99,6 +99,96 @@ describe('server state payload helpers', () => {
     );
   });
 
+  it('accepts a canonical repayment payload after trimming', () => {
+    assert.deepEqual(
+      normalizeTransactionInput({
+        id: ' repayment-1 ',
+        title: ' 小林 还款给 阿宁 ',
+        totalAmount: 50,
+        expenseDate: '2026-07-12',
+        category: '内部转账/还款',
+        payer: ' 小林 ',
+        splitType: 'CUSTOM',
+        splits: { ' 阿宁 ': 50 }
+      }),
+      {
+        id: 'repayment-1',
+        title: '小林 还款给 阿宁',
+        totalAmountCents: 5000,
+        currency: 'TWD',
+        expenseDate: '2026-07-12',
+        category: '内部转账/还款',
+        payer: '小林',
+        splitType: 'CUSTOM',
+        splitRows: [{ userName: '阿宁', amountCents: 5000 }]
+      }
+    );
+  });
+
+  it('rejects an EQUAL repayment payload', () => {
+    assert.throws(
+      () =>
+        normalizeTransactionInput({
+          id: 'repayment-equal',
+          title: '小林 还款给 阿宁',
+          totalAmount: 50,
+          category: '内部转账/还款',
+          payer: '小林',
+          splitType: 'EQUAL',
+          splits: { 阿宁: 50 }
+        }),
+      /repayment/i
+    );
+  });
+
+  it('rejects a repayment payload with multiple recipients', () => {
+    assert.throws(
+      () =>
+        normalizeTransactionInput({
+          id: 'repayment-multiple',
+          title: '小林 还款给 阿宁',
+          totalAmount: 50,
+          category: '内部转账/还款',
+          payer: '小林',
+          splitType: 'CUSTOM',
+          splits: { 阿宁: 25, 阿杰: 25 }
+        }),
+      /repayment/i
+    );
+  });
+
+  it('rejects a self-transfer repayment payload', () => {
+    assert.throws(
+      () =>
+        normalizeTransactionInput({
+          id: 'repayment-self',
+          title: '小林 还款给 小林',
+          totalAmount: 50,
+          category: '内部转账/还款',
+          payer: '小林',
+          splitType: 'CUSTOM',
+          splits: { 小林: 50 }
+        }),
+      /repayment/i
+    );
+  });
+
+  it('rejects a repayment payload with a noncanonical title', () => {
+    assert.throws(
+      () =>
+        normalizeTransactionInput({
+          id: 'repayment-title',
+          title: '还款给阿宁',
+          totalAmount: 50,
+          category: '内部转账/还款',
+          payer: '小林',
+          splitType: 'CUSTOM',
+          splits: { 阿宁: 50 }
+        }),
+      /repayment/i
+    );
+  });
+
   it('accepts the PostgreSQL integer cents ceiling', () => {
     const normalized = normalizeTransactionInput({
       id: 'tx-max',

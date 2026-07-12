@@ -4,6 +4,7 @@ import {
   DEFAULT_CATEGORY,
   formatExpenseDate,
   getTodayDate,
+  isTransferCategory,
   normalizeCategory
 } from '../config/expenseMeta.js';
 
@@ -70,6 +71,20 @@ export function normalizeTransactionInput(transaction) {
     splitTotalCents !== totalAmountCents
   ) {
     throw new Error('Transaction splits must add up to total amount.');
+  }
+
+  if (isTransferCategory(category)) {
+    const recipient = splitRows[0]?.userName;
+    if (
+      splitType !== 'CUSTOM' ||
+      splitRows.length !== 1 ||
+      !recipient ||
+      recipient === payer ||
+      splitRows[0].amountCents !== totalAmountCents ||
+      title !== `${payer} 还款给 ${recipient}`
+    ) {
+      throw new Error('Invalid repayment transaction.');
+    }
   }
 
   return {
