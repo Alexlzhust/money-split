@@ -6,5 +6,6 @@ export { DEFAULT_CURRENCY };
 export const STORAGE_KEYS = {
   users: 'splitter.v2.users',
   transactions: 'splitter.v2.transactions',
-  currency: 'splitter.v2.currency'
+  currency: 'splitter.v2.currency',
+  lastPayer: 'splitter.v2.lastPayer'
 };

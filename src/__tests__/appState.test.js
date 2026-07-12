@@ -11,6 +11,7 @@ describe('app state defaults', () => {
     assert.equal(STORAGE_KEYS.users, 'splitter.v2.users');
     assert.equal(STORAGE_KEYS.transactions, 'splitter.v2.transactions');
     assert.equal(STORAGE_KEYS.currency, 'splitter.v2.currency');
+    assert.equal(STORAGE_KEYS.lastPayer, 'splitter.v2.lastPayer');
   });
 
   it('defaults the app currency to TWD', () => {
