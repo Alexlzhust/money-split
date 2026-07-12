@@ -18,7 +18,7 @@ describe('app view reducer', () => {
     assert.equal(ledger.screen, APP_SCREENS.LEDGER);
   });
 
-  it('opens a new transaction with no editing transaction or member overlay', () => {
+  it('closes the member overlay when opening a new transaction', () => {
     const state = {
       screen: APP_SCREENS.SETTLEMENT,
       editingTransaction: { id: 'old' },
@@ -32,16 +32,24 @@ describe('app view reducer', () => {
     });
   });
 
-  it('opens the transaction screen with the exact transaction reference', () => {
+  it('closes the member overlay when opening an existing transaction', () => {
     const transaction = { id: 'bill-1', title: '晚餐' };
-    const editView = appViewReducer(createInitialAppView(), {
+    const state = {
+      screen: APP_SCREENS.SETTLEMENT,
+      editingTransaction: null,
+      memberOpen: true
+    };
+    const editView = appViewReducer(state, {
       type: 'OPEN_EDIT_TRANSACTION',
       transaction
     });
 
-    assert.equal(editView.screen, APP_SCREENS.TRANSACTION);
+    assert.deepEqual(editView, {
+      screen: APP_SCREENS.TRANSACTION,
+      editingTransaction: transaction,
+      memberOpen: false
+    });
     assert.equal(editView.editingTransaction, transaction);
-    assert.equal(editView.memberOpen, false);
   });
 
   it('closes a transaction by returning to the ledger and clearing edit state', () => {
