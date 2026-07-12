@@ -34,9 +34,11 @@ export function App() {
   const [lastPayer, setLastPayer] = useLocalStorage(STORAGE_KEYS.lastPayer, '');
   const [persistenceMode, setPersistenceMode] = useState('loading');
   const [syncMessage, setSyncMessage] = useState('');
+  const [mutationPending, setMutationPending] = useState(false);
   const [view, dispatch] = useReducer(appViewReducer, undefined, createInitialAppView);
   const memberTriggerRef = useRef(null);
   const memberDialogRef = useRef(null);
+  const mutationPendingRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -90,14 +92,26 @@ export function App() {
     setSyncMessage('');
   }
 
+  function setRemoteMutationPending(isPending) {
+    mutationPendingRef.current = isPending;
+    setMutationPending(isPending);
+  }
+
   async function addMember(name) {
+    if (persistenceMode === 'loading' || mutationPendingRef.current) {
+      return false;
+    }
+
     if (persistenceMode === 'database') {
+      setRemoteMutationPending(true);
       try {
         applyRemoteState(await createRemoteMember(name));
         return true;
       } catch (error) {
         setSyncMessage(error.message);
         return false;
+      } finally {
+        setRemoteMutationPending(false);
       }
     }
 
@@ -106,8 +120,13 @@ export function App() {
   }
 
   async function saveTransaction(transaction) {
+    if (persistenceMode === 'loading' || mutationPendingRef.current) {
+      return false;
+    }
+
     const isEditing = transactions.some((item) => item.id === transaction.id);
     if (persistenceMode === 'database') {
+      setRemoteMutationPending(true);
       try {
         applyRemoteState(
           isEditing
@@ -121,6 +140,8 @@ export function App() {
       } catch (error) {
         setSyncMessage(error.message);
         return false;
+      } finally {
+        setRemoteMutationPending(false);
       }
     }
 
@@ -132,13 +153,20 @@ export function App() {
   }
 
   async function deleteTransaction(id) {
+    if (persistenceMode === 'loading' || mutationPendingRef.current) {
+      return false;
+    }
+
     if (persistenceMode === 'database') {
+      setRemoteMutationPending(true);
       try {
         applyRemoteState(await deleteRemoteTransaction(id));
         return true;
       } catch (error) {
         setSyncMessage(error.message);
         return false;
+      } finally {
+        setRemoteMutationPending(false);
       }
     }
 
@@ -148,27 +176,46 @@ export function App() {
   }
 
   function undoLatestTransaction() {
+    if (persistenceMode === 'loading' || mutationPendingRef.current) {
+      return false;
+    }
+
     const latest = getLatestTransaction(transactions);
     if (latest) {
-      deleteTransaction(latest.id);
+      return deleteTransaction(latest.id);
     }
+
+    return false;
   }
 
   async function resetData() {
-    dispatch({ type: 'CLOSE_TRANSACTION' });
+    if (persistenceMode === 'loading' || mutationPendingRef.current) {
+      return false;
+    }
+
+    if (!window.confirm('确定清空所有成员和账单吗？')) {
+      return false;
+    }
 
     if (persistenceMode === 'database') {
+      setRemoteMutationPending(true);
       try {
         applyRemoteState(await resetRemoteState());
+        dispatch({ type: 'CLOSE_TRANSACTION' });
+        return true;
       } catch (error) {
         setSyncMessage(error.message);
+        return false;
+      } finally {
+        setRemoteMutationPending(false);
       }
-      return;
     }
 
     setUsers(DEFAULT_USERS);
     setTransactions([]);
     setSyncMessage('');
+    dispatch({ type: 'CLOSE_TRANSACTION' });
+    return true;
   }
 
   function navigate(screen) {
@@ -220,11 +267,15 @@ export function App() {
       : persistenceMode === 'loading'
         ? '正在连接数据库'
         : '本地模式';
+  const controlsDisabled = persistenceMode === 'loading' || mutationPending;
 
   const syncError =
     syncMessage &&
     html`
-      <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+      <p
+        role="alert"
+        className="mb-4 break-words rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
+      >
         ${syncMessage}
       </p>
     `;
@@ -270,15 +321,16 @@ export function App() {
                 <button
                   type="button"
                   onClick=${resetData}
+                  disabled=${controlsDisabled}
                   title="清空成员和账单"
                   aria-label="清空成员和账单"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-rose-300 hover:text-rose-700"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
                 >
                   <${Trash2} className="h-5 w-5" aria-hidden="true" />
                 </button>
               </header>
 
-              ${syncError}
+              ${!view.memberOpen && syncError}
 
               <div className="space-y-7">
                 <${ExpenseSummary}
@@ -289,9 +341,13 @@ export function App() {
                   transactions=${transactions}
                   editingTransactionId=""
                   onDeleteTransaction=${deleteTransaction}
-                  onEditTransaction=${(transaction) =>
-                    dispatch({ type: 'OPEN_EDIT_TRANSACTION', transaction })}
+                  onEditTransaction=${(transaction) => {
+                    if (!controlsDisabled) {
+                      dispatch({ type: 'OPEN_EDIT_TRANSACTION', transaction });
+                    }
+                  }}
                   onUndoLatest=${undoLatestTransaction}
+                  disabled=${controlsDisabled}
                 />
               </div>
 
@@ -299,9 +355,10 @@ export function App() {
                 data-testid="open-transaction-form"
                 type="button"
                 onClick=${() => dispatch({ type: 'OPEN_NEW_TRANSACTION' })}
+                disabled=${controlsDisabled}
                 title="新增账单"
                 aria-label="新增账单"
-                className="fixed bottom-20 right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 sm:right-[max(1.5rem,calc((100vw-48rem)/2+1.5rem))]"
+                className="safe-area-fab fixed right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:right-[max(1.5rem,calc((100vw-48rem)/2+1.5rem))]"
               >
                 <${Plus} className="h-6 w-6" aria-hidden="true" />
               </button>
@@ -357,7 +414,20 @@ export function App() {
                 <${X} className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
-            <${MemberManagement} users=${users} onAddMember=${addMember} />
+            ${syncMessage &&
+            html`
+              <p
+                role="alert"
+                className="mb-3 break-words rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
+              >
+                ${syncMessage}
+              </p>
+            `}
+            <${MemberManagement}
+              users=${users}
+              onAddMember=${addMember}
+              disabled=${controlsDisabled}
+            />
           </div>
         </div>
       `}

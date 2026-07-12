@@ -59,8 +59,8 @@ export function SettlementDashboard({
                       : 'border-slate-200 bg-slate-100 text-slate-600';
 
                 return html`
-                  <div key=${user} className=${`rounded-lg border px-3 py-2 ${tone}`}>
-                    <div className="text-sm">${user}</div>
+                  <div key=${user} className=${`min-w-0 rounded-lg border px-3 py-2 ${tone}`}>
+                    <div className="break-all text-sm">${user}</div>
                     <div className="mt-1 text-lg">
                       <${MoneyAmount}
                         value=${balance}
@@ -94,7 +94,7 @@ export function SettlementDashboard({
                       key=${`${transfer.from}-${transfer.to}-${transfer.amount}`}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
                     >
-                      <span className="font-medium text-amber-950">
+                      <span className="min-w-0 break-words font-medium text-amber-950">
                         ${transfer.from} 需转账给 ${transfer.to}
                       </span>
                       <${MoneyAmount}

@@ -10,4 +10,8 @@
   .safe-area-action {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+
+  .safe-area-fab {
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
 }

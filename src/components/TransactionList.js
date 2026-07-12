@@ -13,7 +13,8 @@ export function TransactionList({
   editingTransactionId,
   onDeleteTransaction,
   onEditTransaction,
-  onUndoLatest
+  onUndoLatest,
+  disabled = false
 }) {
   return html`
     <section>
@@ -26,7 +27,7 @@ export function TransactionList({
           data-testid="undo-latest-transaction-button"
           type="button"
           onClick=${onUndoLatest}
-          disabled=${transactions.length === 0}
+          disabled=${disabled || transactions.length === 0}
           title="撤回上一笔账单"
           className="ml-auto inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
         >
@@ -65,16 +66,16 @@ export function TransactionList({
                   return html`
                   <article
                     key=${transaction.id}
-                    className=${`rounded-lg border p-3 ${
+                    className=${`min-w-0 overflow-hidden rounded-lg border p-3 ${
                       editingTransactionId === transaction.id
                         ? 'border-amber-300 bg-amber-50'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-semibold">${transaction.title}</h3>
-                        <p className="mt-1 text-sm text-slate-500">${metadata}</p>
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1 basis-40">
+                        <h3 className="break-words font-semibold">${transaction.title}</h3>
+                        <p className="mt-1 break-words text-sm text-slate-500">${metadata}</p>
                       </div>
                       <span className="rounded-lg bg-teal-50 px-3 py-1 text-sm text-teal-700">
                         <${MoneyAmount}
@@ -89,8 +90,9 @@ export function TransactionList({
                           data-testid=${`edit-transaction-${transaction.id}`}
                           type="button"
                           onClick=${() => onEditTransaction(transaction)}
+                          disabled=${disabled}
                           title="编辑账单"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-teal-300 hover:text-teal-700"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-teal-300 hover:text-teal-700 disabled:cursor-not-allowed disabled:text-slate-300"
                         >
                           <${Edit3} className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -98,8 +100,9 @@ export function TransactionList({
                           data-testid=${`delete-transaction-${transaction.id}`}
                           type="button"
                           onClick=${() => onDeleteTransaction(transaction.id)}
+                          disabled=${disabled}
                           title="删除账单"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-rose-300 hover:text-rose-700"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:text-slate-300"
                         >
                           <${Trash2} className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -110,9 +113,9 @@ export function TransactionList({
                         ([user, amount]) => html`
                           <div
                             key=${`${transaction.id}-${user}`}
-                            className="flex justify-between gap-3 rounded-md bg-slate-100 px-3 py-2 text-sm"
+                            className="flex min-w-0 justify-between gap-3 rounded-md bg-slate-100 px-3 py-2 text-sm"
                           >
-                            <span>${user}</span>
+                            <span className="min-w-0 break-all">${user}</span>
                             <${MoneyAmount}
                               value=${amount}
                               currency=${transactionCurrency}
