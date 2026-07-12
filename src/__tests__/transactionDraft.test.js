@@ -5,7 +5,8 @@ import {
   deriveCustomTotal,
   getDefaultPayer,
   getDraftCurrency,
-  getEffectiveTransactionAmount
+  getEffectiveTransactionAmount,
+  reconcileEqualParticipants
 } from '../utils/transactionDraft.js';
 import { calculateNetBalances } from '../utils/settlements.js';
 
@@ -42,6 +43,48 @@ describe('transaction draft helpers', () => {
     assert.equal(getDefaultPayer(['阿宁', '小林'], '小周'), '阿宁');
     assert.equal(getDefaultPayer([], '小林'), '');
     assert.equal(getDefaultPayer(undefined, '阿宁'), '');
+  });
+
+  it('preserves deselections while selecting genuinely new equal participants', () => {
+    assert.deepEqual(
+      reconcileEqualParticipants(
+        ['阿宁'],
+        ['阿宁', '小林'],
+        ['阿宁', '小林', '小周']
+      ),
+      ['阿宁', '小周']
+    );
+  });
+
+  it('drops equal participants who are no longer members', () => {
+    assert.deepEqual(
+      reconcileEqualParticipants(['阿宁', '小林'], ['阿宁', '小林'], ['小林']),
+      ['小林']
+    );
+  });
+
+  it('deduplicates equal participants in next-member order', () => {
+    assert.deepEqual(
+      reconcileEqualParticipants(
+        ['小林', '阿宁', '小林'],
+        ['阿宁', '小林'],
+        ['小周', '阿宁', '小林', '阿宁', '小周']
+      ),
+      ['小周', '阿宁', '小林']
+    );
+  });
+
+  it('treats malformed equal participant inputs as empty arrays', () => {
+    assert.deepEqual(reconcileEqualParticipants(undefined, undefined, undefined), []);
+    assert.deepEqual(
+      reconcileEqualParticipants(null, ['阿宁'], ['阿宁', '小林']),
+      ['小林']
+    );
+    assert.deepEqual(reconcileEqualParticipants(['阿宁'], null, ['阿宁', '小林']), [
+      '阿宁',
+      '小林'
+    ]);
+    assert.deepEqual(reconcileEqualParticipants(['阿宁'], ['阿宁'], null), []);
   });
 
   it('prefers a saved transaction currency over the settlement currency', () => {

@@ -13,6 +13,16 @@ export function getEffectiveTransactionAmount({ splitType, totalAmount, customSp
   return fromCents(toCents(totalAmount));
 }
 
+export function reconcileEqualParticipants(currentParticipants, previousUsers, nextUsers) {
+  const selectedUsers = new Set(Array.isArray(currentParticipants) ? currentParticipants : []);
+  const existingUsers = new Set(Array.isArray(previousUsers) ? previousUsers : []);
+  const currentUsers = Array.isArray(nextUsers) ? nextUsers : [];
+
+  return [...new Set(currentUsers)].filter(
+    (user) => selectedUsers.has(user) || !existingUsers.has(user)
+  );
+}
+
 export function getDefaultPayer(users, rememberedPayer) {
   const currentUsers = Array.isArray(users) ? users : [];
   if (currentUsers.includes(rememberedPayer)) {

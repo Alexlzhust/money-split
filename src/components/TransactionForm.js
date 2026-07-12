@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
@@ -23,7 +23,8 @@ import {
   deriveCustomTotal,
   getDefaultPayer,
   getDraftCurrency,
-  getEffectiveTransactionAmount
+  getEffectiveTransactionAmount,
+  reconcileEqualParticipants
 } from '../utils/transactionDraft.js';
 import { SPLIT_TYPES, createEqualSplits, fromCents, toCents } from '../utils/settlements.js';
 
@@ -88,23 +89,22 @@ export function TransactionForm({
     createDraft(users, editingTransaction, defaultCurrency, rememberedPayer)
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const previousUsersRef = useRef([...users]);
   const isEditing = Boolean(editingTransaction);
   const isTransfer = isTransferCategory(draft.category);
 
   useEffect(() => {
     setDraft(createDraft(users, editingTransaction, defaultCurrency, rememberedPayer));
     setIsSubmitting(false);
+    previousUsersRef.current = [...users];
   }, [editingTransaction]);
 
   useEffect(() => {
+    const previousUsers = previousUsersRef.current;
     setDraft((current) => {
       const payer = users.includes(current.payer)
         ? current.payer
         : getDefaultPayer(users, rememberedPayer);
-      const validParticipants = current.participants.filter((user) => users.includes(user));
-      const participants = editingTransaction
-        ? validParticipants
-        : [...validParticipants, ...users.filter((user) => !validParticipants.includes(user))];
       const recipient =
         users.includes(current.recipient) && current.recipient !== payer
           ? current.recipient
@@ -114,10 +114,15 @@ export function TransactionForm({
         ...current,
         payer,
         recipient,
-        participants,
+        participants: reconcileEqualParticipants(
+          current.participants,
+          previousUsers,
+          users
+        ),
         customSplits: getCustomSplitInputs(users, current.customSplits)
       };
     });
+    previousUsersRef.current = [...users];
   }, [users, editingTransaction, rememberedPayer]);
 
   useEffect(() => {
