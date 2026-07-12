@@ -6,11 +6,12 @@ export function deriveCustomTotal(customSplits) {
 }
 
 export function getDefaultPayer(users, rememberedPayer) {
-  if (users.includes(rememberedPayer)) {
+  const currentUsers = Array.isArray(users) ? users : [];
+  if (currentUsers.includes(rememberedPayer)) {
     return rememberedPayer;
   }
 
-  return users[0] || '';
+  return currentUsers[0] || '';
 }
 
 export function getDraftCurrency(editingTransaction, settlementCurrency) {
@@ -24,9 +25,18 @@ export function getDraftCurrency(editingTransaction, settlementCurrency) {
   return DEFAULT_CURRENCY;
 }
 
-export function buildRepaymentTransaction({ sender, recipient, amount }) {
+export function buildRepaymentTransaction(payload) {
+  const { sender: rawSender, recipient: rawRecipient, amount } = payload || {};
+  const sender = typeof rawSender === 'string' ? rawSender.trim() : '';
+  const recipient = typeof rawRecipient === 'string' ? rawRecipient.trim() : '';
   const amountCents = toCents(amount);
-  if (!sender || !recipient || sender === recipient || amountCents <= 0) {
+  if (
+    !sender ||
+    !recipient ||
+    sender === recipient ||
+    !Number.isSafeInteger(amountCents) ||
+    amountCents <= 0
+  ) {
     return null;
   }
 

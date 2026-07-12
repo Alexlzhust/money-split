@@ -17,6 +17,7 @@ describe('transaction draft helpers', () => {
     assert.equal(getDefaultPayer(['阿宁', '小林'], '小林'), '小林');
     assert.equal(getDefaultPayer(['阿宁', '小林'], '小周'), '阿宁');
     assert.equal(getDefaultPayer([], '小林'), '');
+    assert.equal(getDefaultPayer(undefined, '阿宁'), '');
   });
 
   it('prefers a saved transaction currency over the settlement currency', () => {
@@ -37,6 +38,19 @@ describe('transaction draft helpers', () => {
     );
   });
 
+  it('trims member names when mapping a valid repayment', () => {
+    assert.deepEqual(
+      buildRepaymentTransaction({ sender: ' 小林 ', recipient: ' 阿宁 ', amount: 50 }),
+      {
+        title: '小林 还款给 阿宁',
+        payer: '小林',
+        splitType: 'CUSTOM',
+        totalAmount: 50,
+        splits: { 阿宁: 50 }
+      }
+    );
+  });
+
   it('rejects repayments without distinct members or a positive amount', () => {
     assert.equal(buildRepaymentTransaction({ sender: '', recipient: '阿宁', amount: 50 }), null);
     assert.equal(buildRepaymentTransaction({ sender: '小林', recipient: '', amount: 50 }), null);
@@ -50,6 +64,42 @@ describe('transaction draft helpers', () => {
     );
     assert.equal(
       buildRepaymentTransaction({ sender: '小林', recipient: '阿宁', amount: 'invalid' }),
+      null
+    );
+  });
+
+  it('rejects a positive amount too small to produce one cent', () => {
+    assert.equal(
+      buildRepaymentTransaction({ sender: '小林', recipient: '阿宁', amount: '1e-7' }),
+      null
+    );
+  });
+
+  it('rejects an amount that cannot produce safe integer cents', () => {
+    assert.equal(
+      buildRepaymentTransaction({ sender: '小林', recipient: '阿宁', amount: '1e20' }),
+      null
+    );
+  });
+
+  it('rejects an undefined payload', () => {
+    assert.equal(buildRepaymentTransaction(), null);
+  });
+
+  it('rejects a null payload', () => {
+    assert.equal(buildRepaymentTransaction(null), null);
+  });
+
+  it('rejects a whitespace-only sender', () => {
+    assert.equal(
+      buildRepaymentTransaction({ sender: '   ', recipient: '阿宁', amount: 50 }),
+      null
+    );
+  });
+
+  it('rejects a whitespace-only recipient', () => {
+    assert.equal(
+      buildRepaymentTransaction({ sender: '小林', recipient: '\t', amount: 50 }),
       null
     );
   });
