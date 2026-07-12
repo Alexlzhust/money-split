@@ -1,5 +1,5 @@
 import { Plus, Trash2, UserRoundPlus, X } from 'lucide-react';
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { html } from './lib/html.js';
 import { useLocalStorage } from './hooks/useLocalStorage.js';
 import { BottomNavigation } from './components/BottomNavigation.js';
@@ -35,6 +35,8 @@ export function App() {
   const [persistenceMode, setPersistenceMode] = useState('loading');
   const [syncMessage, setSyncMessage] = useState('');
   const [view, dispatch] = useReducer(appViewReducer, undefined, createInitialAppView);
+  const memberTriggerRef = useRef(null);
+  const memberDialogRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -60,6 +62,27 @@ export function App() {
       isMounted = false;
     };
   }, [setTransactions, setUsers]);
+
+  useEffect(() => {
+    if (!view.memberOpen) {
+      return undefined;
+    }
+
+    const trigger = memberTriggerRef.current;
+    const dialog = memberDialogRef.current;
+    const initialFocus =
+      dialog?.querySelector('[data-testid="member-name-input"]') ||
+      dialog?.querySelector('button:not([disabled])') ||
+      dialog;
+
+    initialFocus?.focus();
+
+    return () => {
+      if (trigger?.isConnected) {
+        trigger.focus();
+      }
+    };
+  }, [view.memberOpen]);
 
   function applyRemoteState(state) {
     setUsers(state.users || []);
@@ -154,6 +177,43 @@ export function App() {
     });
   }
 
+  function handleMemberDialogKeyDown(event) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      dispatch({ type: 'CLOSE_MEMBERS' });
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const dialog = memberDialogRef.current;
+    const focusableElements = Array.from(
+      dialog?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) || []
+    ).filter((element) => element.offsetParent !== null);
+
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      dialog?.focus();
+      return;
+    }
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    const focusIsOutside = !dialog?.contains(document.activeElement);
+
+    if (event.shiftKey && (document.activeElement === firstElement || focusIsOutside)) {
+      event.preventDefault();
+      lastElement.focus();
+    } else if (!event.shiftKey && (document.activeElement === lastElement || focusIsOutside)) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  }
+
   const statusLabel =
     persistenceMode === 'database'
       ? '数据库已连接'
@@ -198,6 +258,7 @@ export function App() {
                   <p className="mt-0.5 text-xs text-slate-500">${statusLabel}</p>
                 </div>
                 <button
+                  ref=${memberTriggerRef}
                   type="button"
                   onClick=${() => dispatch({ type: 'OPEN_MEMBERS' })}
                   title="管理成员"
@@ -274,9 +335,12 @@ export function App() {
           }}
         >
           <div
+            ref=${memberDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="member-dialog-title"
+            tabIndex="-1"
+            onKeyDown=${handleMemberDialogKeyDown}
             className="w-full max-w-lg rounded-lg bg-white p-4 shadow-xl"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
