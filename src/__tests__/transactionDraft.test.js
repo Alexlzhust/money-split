@@ -46,6 +46,17 @@ describe('transaction form contracts', () => {
   it('uses 16px controls on mobile to prevent browser auto-zoom', () => {
     assert.match(transactionFormSource, /text-base sm:text-sm/);
   });
+
+  it('repositions the focused field when the mobile keyboard changes the visual viewport', () => {
+    assert.match(
+      transactionFormSource,
+      /visualViewport\?\.addEventListener\('resize', handleViewportResize\)/
+    );
+    assert.match(
+      transactionFormSource,
+      /visualViewport\?\.removeEventListener\('resize', handleViewportResize\)/
+    );
+  });
 });
 
 describe('transaction draft helpers', () => {

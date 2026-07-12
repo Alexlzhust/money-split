@@ -54,6 +54,7 @@ export function TransactionForm({
   const [saveFailure, setSaveFailure] = useState('');
   const previousUsersRef = useRef([...users]);
   const failureAlertRef = useRef(null);
+  const formRef = useRef(null);
   const isEditing = Boolean(editingTransaction);
   const isTransfer = isTransferCategory(draft.category);
 
@@ -118,6 +119,32 @@ export function TransactionForm({
   }, [defaultCurrency, editingTransaction]);
 
   useEffect(() => {
+    const visualViewport = window.visualViewport;
+    let animationFrame = null;
+
+    function handleViewportResize() {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+
+      animationFrame = window.requestAnimationFrame(() => {
+        const focusedField = document.activeElement;
+        if (formRef.current?.contains(focusedField)) {
+          keepFieldVisible(focusedField);
+        }
+      });
+    }
+
+    visualViewport?.addEventListener('resize', handleViewportResize);
+    return () => {
+      visualViewport?.removeEventListener('resize', handleViewportResize);
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!saveFailure) {
       return;
     }
@@ -177,18 +204,27 @@ export function TransactionForm({
     }));
   }
 
-  function keepFocusedFieldVisible(event) {
-    const field = event.target;
-    const action = event.currentTarget.querySelector('.safe-area-action');
+  function keepFieldVisible(field) {
+    const action = formRef.current?.querySelector('.safe-area-action');
     if (!field.matches('input, select') || !action) {
       return;
     }
 
     const fieldBounds = field.getBoundingClientRect();
     const actionBounds = action.getBoundingClientRect();
-    if (fieldBounds.bottom > actionBounds.top - 12) {
+    const viewportTop = window.visualViewport?.offsetTop || 0;
+    const viewportBottom = window.visualViewport
+      ? viewportTop + window.visualViewport.height
+      : window.innerHeight;
+    const availableBottom = Math.min(actionBounds.top, viewportBottom) - 12;
+
+    if (fieldBounds.bottom > availableBottom || fieldBounds.top < viewportTop + 12) {
       field.scrollIntoView({ block: 'center' });
     }
+  }
+
+  function keepFocusedFieldVisible(event) {
+    keepFieldVisible(event.target);
   }
 
   async function handleSubmit(event) {
@@ -250,7 +286,12 @@ export function TransactionForm({
         </h1>
       </header>
 
-      <form onSubmit=${handleSubmit} onFocus=${keepFocusedFieldVisible} aria-busy=${isSubmitting}>
+      <form
+        ref=${formRef}
+        onSubmit=${handleSubmit}
+        onFocus=${keepFocusedFieldVisible}
+        aria-busy=${isSubmitting}
+      >
         <fieldset disabled=${isSubmitting} className="min-w-0 space-y-5 border-0 p-0">
         ${users.length === 0 &&
         html`
