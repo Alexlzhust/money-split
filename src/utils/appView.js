@@ -17,7 +17,12 @@ export function appViewReducer(state, action) {
     case 'OPEN_LEDGER':
       return { ...state, screen: APP_SCREENS.LEDGER, editingTransaction: null };
     case 'OPEN_SETTLEMENT':
-      return { ...state, screen: APP_SCREENS.SETTLEMENT, editingTransaction: null };
+      return {
+        ...state,
+        screen: APP_SCREENS.SETTLEMENT,
+        editingTransaction: null,
+        memberOpen: false
+      };
     case 'OPEN_NEW_TRANSACTION':
       return {
         screen: APP_SCREENS.TRANSACTION,
@@ -31,9 +36,14 @@ export function appViewReducer(state, action) {
         memberOpen: false
       };
     case 'CLOSE_TRANSACTION':
-      return { ...state, screen: APP_SCREENS.LEDGER, editingTransaction: null };
+      return {
+        ...state,
+        screen: APP_SCREENS.LEDGER,
+        editingTransaction: null,
+        memberOpen: false
+      };
     case 'OPEN_MEMBERS':
-      return { ...state, memberOpen: true };
+      return state.screen === APP_SCREENS.LEDGER ? { ...state, memberOpen: true } : state;
     case 'CLOSE_MEMBERS':
       return { ...state, memberOpen: false };
     default:

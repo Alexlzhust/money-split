@@ -18,6 +18,20 @@ describe('app view reducer', () => {
     assert.equal(ledger.screen, APP_SCREENS.LEDGER);
   });
 
+  it('closes the member overlay when opening settlement', () => {
+    const state = {
+      screen: APP_SCREENS.LEDGER,
+      editingTransaction: null,
+      memberOpen: true
+    };
+
+    assert.deepEqual(appViewReducer(state, { type: 'OPEN_SETTLEMENT' }), {
+      screen: APP_SCREENS.SETTLEMENT,
+      editingTransaction: null,
+      memberOpen: false
+    });
+  });
+
   it('closes the member overlay when opening a new transaction', () => {
     const state = {
       screen: APP_SCREENS.SETTLEMENT,
@@ -57,7 +71,7 @@ describe('app view reducer', () => {
     const editView = {
       screen: APP_SCREENS.TRANSACTION,
       editingTransaction: transaction,
-      memberOpen: false
+      memberOpen: true
     };
 
     assert.deepEqual(appViewReducer(editView, { type: 'CLOSE_TRANSACTION' }), {
@@ -83,26 +97,45 @@ describe('app view reducer', () => {
     assert.deepEqual(appViewReducer(state, { type: 'OPEN_SETTLEMENT' }), {
       screen: APP_SCREENS.SETTLEMENT,
       editingTransaction: null,
-      memberOpen: true
+      memberOpen: false
     });
   });
 
-  it('opens and closes members without changing screen or edit state', () => {
-    const editingTransaction = { id: 'bill-1' };
+  it('opens and closes members on the ledger without changing other state', () => {
     const state = {
-      screen: APP_SCREENS.TRANSACTION,
-      editingTransaction,
+      screen: APP_SCREENS.LEDGER,
+      editingTransaction: null,
       memberOpen: false
     };
 
     const opened = appViewReducer(state, { type: 'OPEN_MEMBERS' });
     assert.deepEqual(opened, {
-      screen: APP_SCREENS.TRANSACTION,
-      editingTransaction,
+      screen: APP_SCREENS.LEDGER,
+      editingTransaction: null,
       memberOpen: true
     });
 
     assert.deepEqual(appViewReducer(opened, { type: 'CLOSE_MEMBERS' }), state);
+  });
+
+  it('ignores member-open actions on settlement', () => {
+    const settlement = {
+      screen: APP_SCREENS.SETTLEMENT,
+      editingTransaction: null,
+      memberOpen: false
+    };
+
+    assert.equal(appViewReducer(settlement, { type: 'OPEN_MEMBERS' }), settlement);
+  });
+
+  it('ignores member-open actions on transaction forms', () => {
+    const transaction = {
+      screen: APP_SCREENS.TRANSACTION,
+      editingTransaction: { id: 'bill-1' },
+      memberOpen: false
+    };
+
+    assert.equal(appViewReducer(transaction, { type: 'OPEN_MEMBERS' }), transaction);
   });
 
   it('returns the same state object for unknown actions', () => {
