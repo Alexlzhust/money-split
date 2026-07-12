@@ -24,6 +24,15 @@ import {
 } from './utils/transactionState.js';
 import { APP_SCREENS, appViewReducer, createInitialAppView } from './utils/appView.js';
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function getVisibleFocusableElements(container) {
+  return Array.from(container?.querySelectorAll(FOCUSABLE_SELECTOR) || []).filter(
+    (element) => element.offsetParent !== null
+  );
+}
+
 export function App() {
   const [users, setUsers] = useLocalStorage(STORAGE_KEYS.users, DEFAULT_USERS);
   const [transactions, setTransactions] = useLocalStorage(STORAGE_KEYS.transactions, []);
@@ -72,14 +81,64 @@ export function App() {
 
     const trigger = memberTriggerRef.current;
     const dialog = memberDialogRef.current;
+    const focusableElements = getVisibleFocusableElements(dialog);
     const initialFocus =
-      dialog?.querySelector('[data-testid="member-name-input"]') ||
-      dialog?.querySelector('button:not([disabled])') ||
+      dialog?.querySelector('[data-testid="member-name-input"]:not([disabled])') ||
+      focusableElements[0] ||
       dialog;
 
     initialFocus?.focus();
 
+    function handleDocumentKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        dispatch({ type: 'CLOSE_MEMBERS' });
+        return;
+      }
+
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const currentDialog = memberDialogRef.current;
+      const currentFocusableElements = getVisibleFocusableElements(currentDialog);
+
+      if (currentFocusableElements.length === 0) {
+        event.preventDefault();
+        currentDialog?.focus();
+        return;
+      }
+
+      const firstElement = currentFocusableElements[0];
+      const lastElement = currentFocusableElements[currentFocusableElements.length - 1];
+      const focusIsOutside = !currentDialog?.contains(document.activeElement);
+
+      if (focusIsOutside) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+      } else if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    function handleDocumentFocusIn(event) {
+      const currentDialog = memberDialogRef.current;
+      if (currentDialog && !currentDialog.contains(event.target)) {
+        const [firstElement] = getVisibleFocusableElements(currentDialog);
+        (firstElement || currentDialog).focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleDocumentKeyDown, true);
+    document.addEventListener('focusin', handleDocumentFocusIn, true);
+
     return () => {
+      document.removeEventListener('keydown', handleDocumentKeyDown, true);
+      document.removeEventListener('focusin', handleDocumentFocusIn, true);
       if (trigger?.isConnected) {
         trigger.focus();
       }
@@ -224,43 +283,6 @@ export function App() {
     });
   }
 
-  function handleMemberDialogKeyDown(event) {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      dispatch({ type: 'CLOSE_MEMBERS' });
-      return;
-    }
-
-    if (event.key !== 'Tab') {
-      return;
-    }
-
-    const dialog = memberDialogRef.current;
-    const focusableElements = Array.from(
-      dialog?.querySelectorAll(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      ) || []
-    ).filter((element) => element.offsetParent !== null);
-
-    if (focusableElements.length === 0) {
-      event.preventDefault();
-      dialog?.focus();
-      return;
-    }
-
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
-    const focusIsOutside = !dialog?.contains(document.activeElement);
-
-    if (event.shiftKey && (document.activeElement === firstElement || focusIsOutside)) {
-      event.preventDefault();
-      lastElement.focus();
-    } else if (!event.shiftKey && (document.activeElement === lastElement || focusIsOutside)) {
-      event.preventDefault();
-      firstElement.focus();
-    }
-  }
-
   const statusLabel =
     persistenceMode === 'database'
       ? '数据库已连接'
@@ -397,8 +419,7 @@ export function App() {
             aria-modal="true"
             aria-labelledby="member-dialog-title"
             tabIndex="-1"
-            onKeyDown=${handleMemberDialogKeyDown}
-            className="w-full max-w-lg rounded-lg bg-white p-4 shadow-xl"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg bg-white p-4 shadow-xl"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 id="member-dialog-title" className="text-base font-semibold text-slate-950">

@@ -33,9 +33,10 @@ export function MemberManagement({ users, onAddMember, disabled = false }) {
           data-testid="member-name-input"
           value=${name}
           onChange=${(event) => setName(event.target.value)}
-          disabled=${disabled || isPending}
+          disabled=${disabled && !isPending}
+          readOnly=${isPending}
           placeholder="输入成员姓名"
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100 read-only:bg-slate-100"
         />
         <button
           data-testid="add-member-button"
