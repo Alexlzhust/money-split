@@ -52,15 +52,29 @@ GitHub Actions 会在推送和 Pull Request 时执行同样的检查。
 
 ## 数据库与部署
 
-1. 在 Neon 创建 Postgres 数据库。
-2. 在 Vercel 项目中配置 `DATABASE_URL`。
-3. 将仓库导入 Vercel，或使用 Vercel CLI 部署。
+项目使用两个彼此独立的 Neon 数据库：
+
+- Vercel `Production` 使用正式数据库，当前数据库名为 `neondb`。
+- Vercel `Preview` 和 `Development` 使用测试数据库 `money_split_test`。
+
+`src/server/databaseIsolation.js` 会在 API 建立连接前校验上述规则。生产环境无法连接测试库，预览和开发环境也无法连接正式库。修改数据库环境变量后，应分别重新部署对应环境，已有部署不会自动更新。
+
+1. 在 Neon 创建正式数据库和测试数据库。
+2. 在 Vercel 中为 Production 单独配置正式库的 `DATABASE_URL`。
+3. 为 Preview 和 Development 单独配置测试库的 `DATABASE_URL`。
+4. 将仓库导入 Vercel，或使用 Vercel CLI 部署。
 
 ```bash
 npx vercel deploy --prod
 ```
 
 后端也兼容 `POSTGRES_URL`、`POSTGRES_PRISMA_URL` 和 `NEON_DATABASE_URL`。数据库表会在首次 API 请求时自动创建。
+
+需要在本机调试 Vercel Functions 时，只拉取 Development 环境，避免误连生产库：
+
+```bash
+npx vercel env pull .env.local --environment=development --yes
+```
 
 环境变量名称见 [`.env.example`](./.env.example)。不要提交真实数据库凭据或 `.env.local`。
 
@@ -82,5 +96,6 @@ dist/styles.css         编译后的 Tailwind CSS
 ## 当前限制
 
 - 当前没有登录或账本权限隔离，获得生产网址的人可以修改共享数据。
+- 部署环境已经隔离数据库，但同一个生产网址内仍是所有使用者共享同一本账。
 - 汇率是应用内固定参考值，不是实时金融报价。
 - 成员名称目前作为数据库主键，不支持直接重命名或删除已被历史账单引用的成员。

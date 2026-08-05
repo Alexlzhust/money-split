@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { assertDatabaseIsolation } from '../src/server/databaseIsolation.js';
 import { buildStateFromRows, normalizeTransactionInput } from '../src/server/statePayload.js';
 
 const connectionString =
@@ -16,6 +17,7 @@ function getSql() {
     error.statusCode = 503;
     throw error;
   }
+  assertDatabaseIsolation(connectionString, process.env.VERCEL_ENV);
   return neon(connectionString);
 }
 

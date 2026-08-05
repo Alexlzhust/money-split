@@ -67,6 +67,15 @@ The preferred environment variable is `DATABASE_URL`. Supported fallbacks:
 
 Never print or commit database credentials. `.env.local` and `.vercel/` are ignored.
 
+Database environments are intentionally isolated:
+
+- Vercel Production uses the production database `neondb`.
+- Vercel Preview and Development use only `money_split_test`.
+- `src/server/databaseIsolation.js` enforces this mapping before an API connection is created.
+- Pull local variables only from Development: `npx vercel env pull .env.local --environment=development --yes`.
+- Never point Preview or Development at Production, even temporarily. Use a read-only API request when verifying production data.
+- Vercel environment variable changes apply only to new deployments, so redeploy the affected environment after any update.
+
 Tables are created on first API access in `api/_database.js`:
 
 - `members`
@@ -118,9 +127,11 @@ For UI changes, verify at mobile and desktop widths. Mobile form changes should 
 
 After deploying, confirm the Vercel deployment status is `Ready` and verify `/api/state` without mutating production data.
 
+Create a Preview deployment as part of database configuration changes and confirm its `/api/state` is backed by `money_split_test` before sharing it.
+
 ## Known Constraints
 
-- There is no authentication or ledger isolation.
+- There is no authentication or per-user ledger isolation inside a deployment. Production and test deployments do use separate databases.
 - The reset endpoint is public.
 - Member names are primary keys, so rename and delete require data migration work.
 - Currency rates are fixed reference values rather than a live-rate feed.
