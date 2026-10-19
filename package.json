@@ -10,7 +10,7 @@
     "test": "node --test src/__tests__/*.test.js"
   },
   "devDependencies": {
-    "tailwindcss": "^3.4.19"
+    "tailwindcss": "^4.3.3"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0"
